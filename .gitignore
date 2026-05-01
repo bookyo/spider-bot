@@ -1,0 +1,13 @@
+# OS / editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+*.pid
+
+# Environment files
+.env
+.env.local
+.env.*.local
