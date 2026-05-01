@@ -208,8 +208,14 @@ class AnimePipeline:
             new_val = item.get(field)
             old_val = existing.get(field)
             if new_val and not old_val:
-                update_data[field] = new_val
+                update_data[field] = self._normalize_field_value(field, new_val)
                 enriched_fields.append(field)
+                continue
+
+            replacement = self._pick_better_field_value(field, old_val, new_val)
+            if replacement is not None and replacement != old_val:
+                update_data[field] = replacement
+                enriched_fields.append(f'{field}:upgrade')
 
         if item.get('normalized_title') and not existing.get('normalized_title'):
             update_data['normalized_title'] = item.get('normalized_title')
@@ -388,6 +394,134 @@ class AnimePipeline:
         if left_normalized or right_normalized:
             return 3
         return 0
+
+    def _normalize_field_value(self, field, value):
+        if field == 'director':
+            return self._normalize_director_value(value)
+        if field == 'voice_actors':
+            return self._normalize_voice_actors_value(value)
+        if field == 'synopsis':
+            return self._normalize_synopsis_value(value)
+        if field == 'year':
+            return self._normalize_year_value(value)
+        return value
+
+    def _pick_better_field_value(self, field, old_value, new_value):
+        normalized_new = self._normalize_field_value(field, new_value)
+        normalized_old = self._normalize_field_value(field, old_value)
+        if not normalized_new:
+            return None
+
+        if field == 'year':
+            if not normalized_old:
+                return normalized_new
+            return None
+
+        if field == 'director':
+            if self._director_quality_score(normalized_new) > self._director_quality_score(normalized_old):
+                return normalized_new
+            return None
+
+        if field == 'voice_actors':
+            if self._voice_actors_quality_score(normalized_new) > self._voice_actors_quality_score(normalized_old):
+                return normalized_new
+            return None
+
+        if field == 'synopsis':
+            if self._synopsis_quality_score(normalized_new) > self._synopsis_quality_score(normalized_old):
+                return normalized_new
+            return None
+
+        return None
+
+    def _normalize_director_value(self, value):
+        if not value:
+            return None
+        names = [
+            part.strip()
+            for part in str(value).replace('|', '/').replace('、', '/').replace(',', '/').replace('，', '/').split('/')
+            if part.strip()
+        ]
+        deduped = []
+        seen = set()
+        for name in names:
+            normalized = normalize_person_name(name)
+            if not normalized or normalized in {'未知', 'none', 'n/a'}:
+                continue
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(name.strip())
+        return '/'.join(deduped[:10]) if deduped else None
+
+    def _normalize_voice_actors_value(self, value):
+        if not value:
+            return []
+        raw_values = value if isinstance(value, list) else [value]
+        result = []
+        seen = set()
+        for raw in raw_values:
+            for part in str(raw).replace('|', '/').replace('、', '/').replace(',', '/').replace('，', '/').split('/'):
+                cleaned = part.strip()
+                normalized = normalize_person_name(cleaned)
+                if not cleaned or not normalized or normalized in {'未知', 'none', 'n/a'}:
+                    continue
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                result.append(cleaned)
+        return result[:20]
+
+    def _normalize_synopsis_value(self, value):
+        if not value:
+            return None
+        text = ' '.join(str(value).split())
+        text = text.strip()
+        if not text or text.lower() in {'暂无简介', '暂无', 'none', 'n/a', '未知'}:
+            return None
+        return text[:2000]
+
+    def _normalize_year_value(self, value):
+        if value is None or value == '':
+            return None
+        try:
+            year = int(str(value).strip()[:4])
+        except (TypeError, ValueError):
+            return None
+        if 1900 <= year <= 2030:
+            return year
+        return None
+
+    def _director_quality_score(self, value):
+        if not value:
+            return 0
+        names = [part for part in str(value).split('/') if part.strip()]
+        if not names:
+            return 0
+        return min(len(names), 3) * 10 + min(len(str(value)), 30)
+
+    def _voice_actors_quality_score(self, value):
+        if not value:
+            return 0
+        actors = value if isinstance(value, list) else self._normalize_voice_actors_value(value)
+        if not actors:
+            return 0
+        total_length = sum(len(str(actor)) for actor in actors[:5])
+        return min(len(actors), 5) * 10 + min(total_length, 50)
+
+    def _synopsis_quality_score(self, value):
+        if not value:
+            return 0
+        text = str(value).strip()
+        if not text:
+            return 0
+        if len(text) < 20:
+            return 5
+        if len(text) < 60:
+            return 15
+        if len(text) < 150:
+            return 30
+        return 45
 
     def _insert_new(self, item, dedup_key):
         """插入新记录，同时下载海报"""

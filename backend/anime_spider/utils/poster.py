@@ -6,6 +6,7 @@ import hashlib
 import requests
 from io import BytesIO
 from PIL import Image
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,30 @@ DEFAULT_POSTER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirnam
 DEFAULT_TIMEOUT = 15
 MIN_WIDTH = 200
 MIN_HEIGHT = 300
+
+BROWSER_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Fetch-Dest': 'image',
+    'Sec-Fetch-Mode': 'no-cors',
+    'Sec-Fetch-Site': 'cross-site',
+}
+
+
+def _build_image_headers(poster_url):
+    headers = dict(BROWSER_HEADERS)
+    netloc = urlparse(str(poster_url or '')).netloc.lower()
+    if 'doubanio.com' in netloc or 'douban.com' in netloc:
+        headers['Referer'] = 'https://movie.douban.com/'
+    return headers
 
 
 def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
@@ -38,10 +63,11 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
     os.makedirs(poster_dir, exist_ok=True)
 
     try:
+        headers = _build_image_headers(poster_url)
         resp = requests.get(
             poster_url,
             timeout=timeout,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+            headers=headers,
             stream=True,
         )
         resp.raise_for_status()
@@ -49,7 +75,13 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
         # 读取图片数据
         data = resp.content
         if len(data) < 1000:
-            logger.debug(f'[Poster] 图片太小，跳过: {poster_url}')
+            logger.debug(
+                '[Poster] 图片内容过小，跳过: url=%s status=%s type=%s bytes=%s',
+                poster_url,
+                resp.status_code,
+                resp.headers.get('content-type'),
+                len(data),
+            )
             return None
 
         img = Image.open(BytesIO(data))
@@ -82,10 +114,17 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
         return filepath
 
     except requests.RequestException as e:
-        logger.debug(f'[Poster] 下载失败 {poster_url}: {e}')
+        response = getattr(e, 'response', None)
+        logger.warning(
+            '[Poster] 下载失败: url=%s status=%s type=%s error=%s',
+            poster_url,
+            getattr(response, 'status_code', None),
+            response.headers.get('content-type') if response is not None else None,
+            e,
+        )
         return None
     except Exception as e:
-        logger.debug(f'[Poster] 处理失败 {poster_url}: {e}')
+        logger.warning(f'[Poster] 处理失败 {poster_url}: {e}')
         return None
 
 

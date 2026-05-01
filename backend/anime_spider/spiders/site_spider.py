@@ -20,6 +20,7 @@ from anime_spider.utils.dedup import (
 )
 from anime_spider.utils.dedup import summarize_play_sources
 from anime_spider.utils.db import MongoDB
+from anime_spider.utils.douban_sec import build_scrapy_html_response, is_douban_url, resolve_douban_response
 from anime_spider.utils.domain_priority import DomainPriorityScorer
 from anime_spider.utils.site_fingerprint import SiteFingerprint
 from anime_spider.utils.url_features import URLFeatureAnalyzer
@@ -85,15 +86,24 @@ class SiteSpider(scrapy.Spider):
             return
 
         for url in urls:
-            yield scrapy.Request(
-                url=url,
-                callback=self.parse,
-                meta={'depth': 0},
-                dont_filter=True,
-            )
+            yield self._build_request(url, depth=0, dont_filter=True)
+
+    def _build_request(self, url, depth, callback=None, priority=0, dont_filter=False, meta=None):
+        request_meta = {'depth': depth, **(meta or {})}
+        return scrapy.Request(
+            url=url,
+            callback=callback or self.parse,
+            meta=request_meta,
+            priority=priority,
+            dont_filter=dont_filter,
+        )
 
     def parse(self, response):
         """解析页面"""
+        if is_douban_url(response.url) and not response.meta.get('douban_resolved'):
+            yield from self._resolve_douban_then_parse(response)
+            return
+
         url = response.url
         depth = response.meta.get('depth', 0)
         adapter = self.adapter_registry.resolve(response)
@@ -227,6 +237,18 @@ class SiteSpider(scrapy.Spider):
                     },
                     priority=5,
                 )
+
+    def _resolve_douban_then_parse(self, response):
+        try:
+            resolved = resolve_douban_response(response.url)
+        except Exception as exc:
+            logger.warning('[Douban] 解析失败 %s: %s', response.url, exc)
+            return
+
+        resolved_response = build_scrapy_html_response(response.request, resolved)
+        resolved_response.meta['douban_resolved'] = True
+        resolved_response.meta['depth'] = response.meta.get('depth', 0)
+        yield from self.parse(resolved_response)
 
     def _parse_play_page(self, response):
         """从播放页提取最终媒体链接并回写为真实播放源。"""
