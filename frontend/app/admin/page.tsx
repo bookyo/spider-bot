@@ -309,11 +309,11 @@ export default function AdminPage() {
                 disabled={loading}
                 className="mt-5 rounded-2xl bg-ember px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110"
               >
-                保存调度设置
+                保存增量巡检设置
               </button>
 
               {overview?.settings.last_incremental_output ? (
-                <pre className="scrollbar-thin mt-5 max-h-60 overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
+                <pre className="scrollbar-thin mt-5 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
                   {overview.settings.last_incremental_output}
                 </pre>
               ) : null}
@@ -348,8 +348,22 @@ export default function AdminPage() {
                 />
               </div>
 
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={loading}
+                  className="rounded-2xl bg-ember px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110"
+                >
+                  保存站点发现设置
+                </button>
+                <div className="flex items-center text-sm text-parchment/60">
+                  这里的开关和周期修改后，需要单独保存才会生效。
+                </div>
+              </div>
+
               {overview?.settings.last_source_discovery_output ? (
-                <pre className="scrollbar-thin mt-5 max-h-60 overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
+                <pre className="scrollbar-thin mt-5 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
                   {overview.settings.last_source_discovery_output}
                 </pre>
               ) : null}
