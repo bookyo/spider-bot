@@ -13,8 +13,8 @@ from api.scheduler import (
     ensure_admin_settings,
     get_admin_settings,
     run_incremental_job,
+    start_source_crawl_job,
     start_source_discovery_job,
-    trigger_source_crawl,
 )
 
 router = APIRouter(prefix='/api/admin', tags=['管理后台'], dependencies=[Depends(require_admin_api_key)])
@@ -166,18 +166,8 @@ async def admin_run_source_crawl(source_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail='爬虫源不存在')
 
-    task = await trigger_source_crawl(doc)
-    now = datetime.utcnow()
-    await db['crawl_sources'].update_one(
-        {'_id': oid},
-        {'$set': {
-            'last_run_at': now,
-            'last_run_status': 'started',
-            'last_run_output': f"spawned pid={task['pid']} args={' '.join(task['args'])}",
-            'updated_at': now,
-        }}
-    )
-    return {'ok': True, **task, 'started_at': now}
+    task = await start_source_crawl_job(doc, force=False)
+    return {'ok': task.get('started', False), **task}
 
 
 @router.post('/tasks/incremental/run')

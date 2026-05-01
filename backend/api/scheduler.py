@@ -4,9 +4,11 @@ import asyncio
 import logging
 import os
 from datetime import datetime
+from typing import Any
 
+from bson import ObjectId
 from api.database import get_db
-from api.task_runner import run_backend_command, spawn_backend_command
+from api.task_runner import run_backend_command, run_backend_command_stream, spawn_backend_command
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ DEFAULT_SETTINGS = {
 
 _scheduler_task: asyncio.Task | None = None
 _source_discovery_task: asyncio.Task | None = None
+_source_crawl_tasks: dict[str, asyncio.Task] = {}
 _incremental_lock = asyncio.Lock()
 _source_discovery_lock = asyncio.Lock()
 
@@ -145,6 +148,91 @@ async def trigger_source_crawl(source: dict) -> dict:
 
     task = await spawn_backend_command(args)
     return task
+
+
+def is_source_crawl_running(source_id: str) -> bool:
+    task = _source_crawl_tasks.get(source_id)
+    return bool(task and not task.done())
+
+
+async def start_source_crawl_job(source: dict, force: bool = False) -> dict[str, Any]:
+    db = get_db()
+    source_id = str(source['_id'])
+
+    if is_source_crawl_running(source_id) and not force:
+        return {'started': False, 'reason': 'source crawl already running'}
+
+    args = ['crawl', '--max-depth', str(int(source.get('max_depth') or 3))]
+    seed_url = str(source.get('seed_url') or '').strip()
+    domain = str(source.get('domain') or '').strip()
+
+    if seed_url:
+        args.extend(['-u', seed_url])
+    elif domain:
+        args.extend(['-d', domain])
+    else:
+        raise ValueError('source missing domain/seed_url')
+
+    started_at = datetime.utcnow()
+    await db['crawl_sources'].update_one(
+        {'_id': source['_id']},
+        {'$set': {
+            'last_run_at': started_at,
+            'last_run_status': 'running',
+            'last_run_output': f"running args={' '.join(args)}",
+            'updated_at': started_at,
+        }}
+    )
+
+    async def runner():
+        try:
+            code, output = await run_backend_command_stream(args)
+            finished_at = datetime.utcnow()
+            status = 'success' if code == 0 else 'failed'
+            await db['crawl_sources'].update_one(
+                {'_id': source['_id']},
+                {'$set': {
+                    'last_run_at': finished_at,
+                    'last_run_status': status,
+                    'last_run_output': output[-4000:] if output else f'process exited with code={code}',
+                    'updated_at': finished_at,
+                }}
+            )
+        except asyncio.CancelledError:
+            finished_at = datetime.utcnow()
+            await db['crawl_sources'].update_one(
+                {'_id': source['_id']},
+                {'$set': {
+                    'last_run_at': finished_at,
+                    'last_run_status': 'cancelled',
+                    'last_run_output': 'source crawl task cancelled',
+                    'updated_at': finished_at,
+                }}
+            )
+            raise
+        except Exception as exc:
+            logger.exception('[Scheduler] source crawl task failed: %s', exc)
+            finished_at = datetime.utcnow()
+            await db['crawl_sources'].update_one(
+                {'_id': source['_id']},
+                {'$set': {
+                    'last_run_at': finished_at,
+                    'last_run_status': 'failed',
+                    'last_run_output': str(exc)[-4000:],
+                    'updated_at': finished_at,
+                }}
+            )
+        finally:
+            _source_crawl_tasks.pop(source_id, None)
+
+    _source_crawl_tasks[source_id] = asyncio.create_task(runner(), name=f'source-crawl:{source_id}')
+    return {
+        'started': True,
+        'status': 'running',
+        'mode': 'background',
+        'source_id': source_id,
+        'started_at': started_at,
+    }
 
 
 async def run_source_discovery_job(force: bool = False) -> dict:
@@ -326,3 +414,12 @@ async def stop_scheduler():
         except asyncio.CancelledError:
             pass
     _source_discovery_task = None
+    for task in list(_source_crawl_tasks.values()):
+        if not task.done():
+            task.cancel()
+    for task in list(_source_crawl_tasks.values()):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    _source_crawl_tasks.clear()

@@ -30,9 +30,12 @@ export function sortEpisodes<T extends { episode?: string | null }>(episodes: T[
     const rightNum = Number(String(right.episode || '').match(/\d+(\.\d+)?/)?.[0] || Number.NaN);
 
     if (Number.isFinite(leftNum) && Number.isFinite(rightNum)) {
-      return leftNum - rightNum;
+      return rightNum - leftNum;
     }
 
-    return String(left.episode || '').localeCompare(String(right.episode || ''));
+    return String(right.episode || '').localeCompare(String(left.episode || ''), 'zh-Hans-CN', {
+      numeric: true,
+      sensitivity: 'base',
+    });
   });
 }
