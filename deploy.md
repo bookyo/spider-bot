@@ -270,6 +270,17 @@ sudo systemctl enable spider-acg-backend
 sudo systemctl start spider-acg-backend
 sudo systemctl status spider-acg-backend
 
+更新：
+cd /www/spider-for-acg
+git pull
+
+cd /www/spider-for-acg/backend
+source .venv/bin/activate
+pip install -r requirements.txt
+
+sudo systemctl restart spider-acg-backend
+journalctl -u spider-acg-backend -n 100 --no-pager
+
 前端启动服务
 pm2 start npm --name "spider-acg-frontend" -- start -- --hostname 0.0.0.0 --port 5002
 

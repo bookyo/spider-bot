@@ -53,7 +53,7 @@ export default async function Home({
                 <span className="block text-ember">without dead links</span>
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-parchment/72 md:text-base">
-                直接消费你后端爬虫已经入库的真实播放源。首页默认只展示存在可播放线路的内容，点击海报直接进入播放页。
+                收录可直接播放的动漫内容，支持按片名、年份和分类快速筛选。点击海报即可进入播放页，继续观看你想看的集数。
               </p>
             </div>
 

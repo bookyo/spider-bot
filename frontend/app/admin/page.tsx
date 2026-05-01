@@ -53,6 +53,7 @@ export default function AdminPage() {
     const stored = window.localStorage.getItem(API_KEY_STORAGE) || '';
     if (stored) {
       setApiKey(stored);
+      void loadAll(stored);
     }
   }, []);
 
@@ -72,6 +73,8 @@ export default function AdminPage() {
       window.localStorage.setItem(API_KEY_STORAGE, key);
     } catch (err) {
       setConnected(false);
+      setOverview(null);
+      setSources([]);
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
       setLoading(false);
