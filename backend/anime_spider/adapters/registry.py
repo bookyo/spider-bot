@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from anime_spider.adapters.base import BaseSiteAdapter
 from anime_spider.adapters.generic import GenericSiteAdapter
+from anime_spider.adapters.ikanbot import IkanbotAdapter
 from anime_spider.adapters.maccms import MacCMSAdapter
 from anime_spider.adapters.module_theme import ModuleThemeAdapter
 from anime_spider.adapters.video_info import VideoInfoThemeAdapter
@@ -78,6 +79,7 @@ class SiteAdapterRegistry:
             for domain, rule in SITE_RULES.items()
         ]
         self._builtin_adapters = [
+            IkanbotAdapter(),
             MacCMSAdapter(),
             ModuleThemeAdapter(),
             VideoInfoThemeAdapter(),
@@ -106,4 +108,6 @@ class SiteAdapterRegistry:
         for adapter in self._rule_adapters:
             if normalized == adapter.domain or normalized.endswith(f'.{adapter.domain}'):
                 return adapter
+        if normalized == 'v.ikanbot.com':
+            return IkanbotAdapter()
         return self._fallback
