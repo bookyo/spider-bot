@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   createAdminSource,
+  deleteAdminSource,
   getAdminOverview,
   getAdminSettings,
   getAdminSources,
@@ -36,7 +37,20 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<AdminSettings>(defaultSettings);
   const [sources, setSources] = useState<CrawlSource[]>([]);
   const [message, setMessage] = useState('');
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
   const [form, setForm] = useState({
+    name: '',
+    domain: '',
+    seed_url: '',
+    homepage_url: '',
+    category_pages: '',
+    recent_pages: '',
+    max_depth: 3,
+    discovery_max_depth: 1,
+    enabled: true,
+    notes: '',
+  });
+  const [editForm, setEditForm] = useState({
     name: '',
     domain: '',
     seed_url: '',
@@ -153,6 +167,76 @@ export default function AdminPage() {
       await loadAll(apiKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function beginEditSource(source: CrawlSource) {
+    setEditingSourceId(source._id);
+    setEditForm({
+      name: source.name || '',
+      domain: source.domain || '',
+      seed_url: source.seed_url || '',
+      homepage_url: source.homepage_url || '',
+      category_pages: (source.category_pages || []).join('\n'),
+      recent_pages: (source.recent_pages || []).join('\n'),
+      max_depth: source.max_depth ?? 3,
+      discovery_max_depth: source.discovery_max_depth ?? 1,
+      enabled: source.enabled,
+      notes: source.notes || '',
+    });
+  }
+
+  function cancelEditSource() {
+    setEditingSourceId(null);
+  }
+
+  async function handleSaveSource(sourceId: string) {
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      await updateAdminSource(apiKey, sourceId, {
+        name: editForm.name,
+        domain: editForm.domain,
+        seed_url: editForm.seed_url,
+        homepage_url: editForm.homepage_url,
+        category_pages: splitLines(editForm.category_pages),
+        recent_pages: splitLines(editForm.recent_pages),
+        max_depth: Number(editForm.max_depth),
+        discovery_max_depth: Number(editForm.discovery_max_depth),
+        enabled: editForm.enabled,
+        notes: editForm.notes,
+      });
+      setEditingSourceId(null);
+      setMessage('爬虫源已保存');
+      await loadAll(apiKey);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存爬虫源失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteSource(source: CrawlSource) {
+    const confirmed = window.confirm(`确认删除爬虫源「${source.name}」吗？`);
+    if (!confirmed) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      await deleteAdminSource(apiKey, source._id);
+      if (editingSourceId === source._id) {
+        setEditingSourceId(null);
+      }
+      setMessage(`已删除 ${source.name}`);
+      await loadAll(apiKey);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败');
     } finally {
       setLoading(false);
     }
@@ -411,12 +495,26 @@ export default function AdminPage() {
                           <span>{source.last_run_status || 'never-run'}</span>
                           <span>{source.last_discovery_status || 'never-discovery'}</span>
                         </div>
+                        {source.last_run_at ? <div className="mt-2 text-xs text-parchment/55">上次抓取: {source.last_run_at}</div> : null}
+                        {source.last_discovery_at ? <div className="mt-1 text-xs text-parchment/55">上次发现: {source.last_discovery_at}</div> : null}
                         {source.homepage_url ? <div className="mt-2 text-xs text-parchment/55">首页: {source.homepage_url}</div> : null}
                         {!!source.category_pages?.length ? <div className="mt-1 text-xs text-parchment/55">分类页: {source.category_pages.length} 个</div> : null}
                         {!!source.recent_pages?.length ? <div className="mt-1 text-xs text-parchment/55">最近更新页: {source.recent_pages.length} 个</div> : null}
                         {source.notes ? <div className="mt-2 text-sm text-parchment/60">{source.notes}</div> : null}
+                        {source.last_run_output ? (
+                          <pre className="scrollbar-thin mt-3 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
+                            {source.last_run_output}
+                          </pre>
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => beginEditSource(source)}
+                          className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-parchment/80 transition hover:border-white/20 hover:text-parchment"
+                        >
+                          编辑
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleSource(source)}
@@ -431,8 +529,50 @@ export default function AdminPage() {
                         >
                           立即抓取
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSource(source)}
+                          className="rounded-full border border-rose-400/30 bg-rose-400/10 px-4 py-2 text-sm text-rose-200 transition hover:bg-rose-400/20"
+                        >
+                          删除
+                        </button>
                       </div>
                     </div>
+                    {editingSourceId === source._id ? (
+                      <div className="mt-5 rounded-[24px] border border-ember/20 bg-black/20 p-4">
+                        <div className="mb-4 text-sm font-medium text-parchment">编辑爬虫源</div>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <TextField label="名称" value={editForm.name} onChange={(value) => setEditForm((current) => ({ ...current, name: value }))} />
+                          <TextField label="域名" value={editForm.domain} onChange={(value) => setEditForm((current) => ({ ...current, domain: value }))} />
+                          <TextField label="seed_url" value={editForm.seed_url} onChange={(value) => setEditForm((current) => ({ ...current, seed_url: value }))} />
+                          <TextField label="首页 URL" value={editForm.homepage_url} onChange={(value) => setEditForm((current) => ({ ...current, homepage_url: value }))} />
+                          <TextAreaField label="分类页列表(每行一个)" value={editForm.category_pages} onChange={(value) => setEditForm((current) => ({ ...current, category_pages: value }))} />
+                          <TextAreaField label="最近更新页列表(每行一个)" value={editForm.recent_pages} onChange={(value) => setEditForm((current) => ({ ...current, recent_pages: value }))} />
+                          <NumberField label="最大深度" value={editForm.max_depth} onChange={(value) => setEditForm((current) => ({ ...current, max_depth: value }))} />
+                          <NumberField label="发现任务深度" value={editForm.discovery_max_depth} onChange={(value) => setEditForm((current) => ({ ...current, discovery_max_depth: value }))} />
+                          <TextField label="备注" value={editForm.notes} onChange={(value) => setEditForm((current) => ({ ...current, notes: value }))} />
+                          <ToggleField label="启用" checked={editForm.enabled} onChange={(value) => setEditForm((current) => ({ ...current, enabled: value }))} />
+                        </div>
+                        <div className="mt-5 flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveSource(source._id)}
+                            disabled={loading || !editForm.name || (!editForm.domain && !editForm.seed_url)}
+                            className="rounded-2xl bg-ember px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            保存修改
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditSource}
+                            disabled={loading}
+                            className="rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm text-parchment/80 transition hover:border-white/20 hover:text-parchment"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
                 {!sources.length ? <div className="text-sm text-ash">暂无自定义爬虫源。</div> : null}

@@ -105,6 +105,12 @@ export async function updateAdminSource(apiKey: string, sourceId: string, payloa
   });
 }
 
+export async function deleteAdminSource(apiKey: string, sourceId: string) {
+  return adminFetch<{ ok: boolean; deleted_id: string }>(`/api/admin/sources/${sourceId}`, apiKey, {
+    method: 'DELETE',
+  });
+}
+
 export async function runAdminSource(apiKey: string, sourceId: string) {
   return adminFetch<{ ok: boolean; pid: number; started_at: string }>(`/api/admin/sources/${sourceId}/crawl`, apiKey, {
     method: 'POST',

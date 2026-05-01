@@ -154,6 +154,21 @@ async def admin_update_source(source_id: str, payload: CrawlSourceUpdate):
     return doc
 
 
+@router.delete('/sources/{source_id}')
+async def admin_delete_source(source_id: str):
+    db = get_db()
+    try:
+        oid = ObjectId(source_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail='无效的 source_id')
+
+    result = await db['crawl_sources'].delete_one({'_id': oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='爬虫源不存在')
+
+    return {'ok': True, 'deleted_id': source_id}
+
+
 @router.post('/sources/{source_id}/crawl')
 async def admin_run_source_crawl(source_id: str):
     db = get_db()
