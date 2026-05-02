@@ -304,6 +304,8 @@ class SiteSpider(scrapy.Spider):
             source['line_id'] = '|'.join(line_parts)
         if player_config.get('url'):
             source['provider_key'] = urlparse(player_config['url']).netloc.lower()
+        elif media_url:
+            source['provider_key'] = urlparse(media_url).netloc.lower()
 
         source['provider_id'] = generate_provider_id(source)
         source['source_id'] = generate_source_id(source)

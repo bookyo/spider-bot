@@ -10,6 +10,12 @@ class SiteFingerprint:
             'stui-content__playlist',
             'mac_url',
             'vod-detail',
+            'ewave-vodlist',
+            'ewave-content__playlist',
+            '/voddetail/',
+            '/vodplay/',
+            '/vod/detail/',
+            '/vod/play/',
         ],
         'module-theme': [
             'module-item',

@@ -48,6 +48,7 @@ class M3U8Extractor:
         '.module-tab-item span::text',
         '.stui-vodlist__head li::text',
         '.stui-pannel__head h2.title::text',
+        '.playlist-slide .nav-tabs a::text',
     ]
 
     PLAYABLE_EXTENSIONS = ('.m3u8', '.mp4', '.m4v', '.flv', '.mpd')
@@ -397,9 +398,16 @@ class M3U8Extractor:
 
     def extract_play_page_entries(self, response):
         """从详情页提取分线路的播放页入口，不直接当作播放源落库。"""
+        vod_id_groups = self._extract_vod_id_play_entry_groups(response)
+        if vod_id_groups:
+            return self._dedupe_play_entry_groups(vod_id_groups)
+
         selector_groups = [
             ('.stui-pannel-box.b.playlist, .stui-pannel-box.playlist, .module-play-list, .module-play-list-content, .module-list', '.stui-content__playlist a, a.module-play-list-link, a'),
             ('.stui-content__playlist, .play-list, .playlist, .source-list', 'a'),
+            ('.tab-content .tab-pane[id^="playlist"]', 'a[href*="/vodplay/"]'),
+            ('.ewave-content__playlist', 'a[href*="/vodplay/"]'),
+            ('.panel', 'a[href*="/vod/play/"]'),
         ]
 
         source_names = self._extract_source_names(response)
@@ -450,11 +458,73 @@ class M3U8Extractor:
 
         return self._dedupe_play_entry_groups(groups_data)
 
+    def _extract_vod_id_play_entry_groups(self, response):
+        anchors = response.css('a[href*="/vod/play/id/"]')
+        if not anchors:
+            return []
+
+        title = (
+            response.css('.vod-detail h1 *::text').get() or
+            response.css('h1 *::text').get() or
+            ''
+        ).strip()
+        source_names = []
+        for raw in response.css('h2.play-from::text, .play-from::text').getall():
+            cleaned = self._clean_source_name(raw)
+            if not cleaned:
+                continue
+            if title and cleaned.startswith(title):
+                cleaned = cleaned[len(title):].strip()
+            cleaned = re.sub(r'在线观看\s*$', '', cleaned).strip()
+            source_names.append(cleaned or raw.strip())
+
+        grouped = {}
+        line_order = []
+        anime_key = None
+        for anchor in anchors:
+            href = anchor.css('::attr(href)').get()
+            if not href:
+                continue
+            abs_url = response.urljoin(href)
+            match = re.search(r'/vod/play/id/([^-/.]+)-(\d+)-(\d+)\.html', abs_url)
+            if not match:
+                continue
+            anime_key = anime_key or match.group(1)
+            line_id = match.group(2)
+            episode = anchor.css('::text').get() or match.group(3)
+            episode = re.sub(r'[^\d.]', '', episode) or match.group(3)
+            if episode.isdigit():
+                episode = episode.zfill(2)
+            if line_id not in grouped:
+                grouped[line_id] = []
+                line_order.append(line_id)
+            entry = {
+                'episode': episode,
+                'play_page_url': abs_url,
+            }
+            if entry not in grouped[line_id]:
+                grouped[line_id].append(entry)
+
+        groups = []
+        for index, line_id in enumerate(line_order):
+            entries = grouped.get(line_id) or []
+            if not entries:
+                continue
+            groups.append({
+                'source_name': source_names[index] if index < len(source_names) else f'line-{line_id}',
+                'anime_key': anime_key,
+                'entries': entries,
+            })
+        return groups
+
     def extract_play_sources_from_page(self, response):
         """从详情页/播放页提取多线路播放源。"""
         selector_groups = [
             ('.stui-pannel-box.b.playlist, .stui-pannel-box.playlist, .module-play-list', '.stui-content__playlist a, a.module-play-list-link, a'),
             ('.stui-content__playlist, .play-list, .playlist, .source-list', 'a'),
+            ('.tab-content .tab-pane[id^="playlist"]', 'a[href*="/vodplay/"]'),
+            ('.ewave-content__playlist', 'a[href*="/vodplay/"]'),
+            ('.panel', 'a[href*="/vod/play/"]'),
         ]
 
         source_names = self._extract_source_names(response)
@@ -549,6 +619,7 @@ class M3U8Extractor:
         selectors = [
             '.stui-pannel__head h2.title::text',
             '.stui-pannel__head .title::text',
+            '.play-from::text',
             '.title::text',
         ]
         for selector in selectors:
@@ -606,7 +677,9 @@ class M3U8Extractor:
         return cleaned or None
 
     def _extract_anime_play_key(self, url):
-        match = re.search(r'/(?:post|play)/(\d+)', url or '')
+        match = re.search(r'/(?:post|play|voddetail|vodplay)/([^/.-]+)', url or '')
+        if not match:
+            match = re.search(r'/vod/(?:detail|play)/id/([^/.-]+)', url or '')
         return match.group(1) if match else None
 
     def _dedupe_play_sources(self, play_sources):
