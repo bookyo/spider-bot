@@ -10,12 +10,16 @@ BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUN_PY = os.path.join(BACKEND_ROOT, 'run.py')
 
 
-async def run_backend_command(args: list[str]) -> tuple[int, str]:
+async def run_backend_command(args: list[str], env: dict[str, str] | None = None) -> tuple[int, str]:
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         RUN_PY,
         *args,
         cwd=BACKEND_ROOT,
+        env=process_env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -24,12 +28,16 @@ async def run_backend_command(args: list[str]) -> tuple[int, str]:
     return process.returncode, output
 
 
-async def spawn_backend_command(args: list[str]) -> dict:
+async def spawn_backend_command(args: list[str], env: dict[str, str] | None = None) -> dict:
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         RUN_PY,
         *args,
         cwd=BACKEND_ROOT,
+        env=process_env,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
     )
@@ -40,12 +48,16 @@ async def spawn_backend_command(args: list[str]) -> dict:
     }
 
 
-async def run_backend_command_stream(args: list[str]) -> tuple[int, str]:
+async def run_backend_command_stream(args: list[str], env: dict[str, str] | None = None) -> tuple[int, str]:
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         RUN_PY,
         *args,
         cwd=BACKEND_ROOT,
+        env=process_env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )

@@ -38,12 +38,24 @@ class SiteSpider(scrapy.Spider):
 
     name = 'site'
 
-    def __init__(self, domain=None, url=None, max_depth=3, incremental_mode=False, *args, **kwargs):
+    def __init__(
+        self,
+        domain=None,
+        url=None,
+        max_depth=3,
+        incremental_mode=False,
+        search_discovery=False,
+        search_pagination_max_pages=200,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.target_domain = domain
         self.start_url = url
         self.max_depth = int(max_depth)
         self.incremental_mode = str(incremental_mode).lower() in ('1', 'true', 'yes')
+        self.search_discovery = str(search_discovery).lower() in ('1', 'true', 'yes')
+        self.search_pagination_max_pages = int(search_pagination_max_pages or 0)
         self.detector = AnimeDetector()
         self.adapter_registry = SiteAdapterRegistry()
         self.m3u8_extractor = M3U8Extractor()
@@ -141,7 +153,9 @@ class SiteSpider(scrapy.Spider):
                 yield from self._extract_detail_links(response, depth, adapter)
 
         # 播放页不继续扩散，否则会把每一集播放页都当成新的线路入口
-        if not self.incremental_mode and url_features.get('page_type') != 'play':
+        if self.search_discovery:
+            yield from self._follow_search_links(response, depth, adapter)
+        elif not self.incremental_mode and url_features.get('page_type') != 'play':
             yield from self._follow_links(response, depth)
 
     def _extract_anime_data(self, response, detection, adapter, fingerprint):
@@ -367,6 +381,71 @@ class SiteSpider(scrapy.Spider):
                     meta={'depth': depth + 1},
                     priority=5,
                 )
+
+    def _follow_search_links(self, response, depth, adapter):
+        """搜索页发现模式：只跟详情页和搜索分页，避免全站扩散。"""
+        if depth >= self.max_depth:
+            return
+
+        yield from self._extract_detail_links(response, depth, adapter)
+
+        if self.search_pagination_max_pages > 0 and depth >= self.search_pagination_max_pages:
+            return
+
+        current_host = urlparse(response.url).netloc
+        for url in self._extract_pagination_links(response):
+            parsed = urlparse(url)
+            if parsed.netloc and parsed.netloc != current_host:
+                continue
+            if url in self.visited_urls:
+                continue
+            yield scrapy.Request(
+                url=url,
+                callback=self.parse,
+                meta={'depth': depth + 1},
+                priority=3,
+            )
+
+    def _extract_pagination_links(self, response):
+        current_url = response.url.split('#', 1)[0]
+        selectors = [
+            'a[rel="next"]::attr(href)',
+            'a.next::attr(href)',
+            '.next a::attr(href)',
+            '.pagination a',
+            '.page a',
+            '.pages a',
+            '.pager a',
+            'a',
+        ]
+        candidates: list[tuple[str, str]] = []
+        for selector in selectors:
+            if selector.endswith('::attr(href)'):
+                candidates.extend((href, '') for href in response.css(selector).getall())
+            else:
+                for anchor in response.css(selector):
+                    href = anchor.css('::attr(href)').get()
+                    text = ' '.join(part.strip() for part in anchor.css('::text').getall() if part.strip())
+                    candidates.append((href, text))
+
+        seen = set()
+        for href, text in candidates:
+            if not href:
+                continue
+            url = response.urljoin(href)
+            if url.split('#', 1)[0] == current_url:
+                continue
+            lower_url = url.lower()
+            lower_text = text.lower()
+            if url in seen:
+                continue
+            if not url.startswith('http'):
+                continue
+            is_page_url = any(token in lower_url for token in ['page=', '/page/', '-page-', 'p=', 'pg=', 'start=', 'offset='])
+            is_next_text = any(token in lower_text for token in ['下一页', '下页', 'next', '>', '»'])
+            if is_page_url or is_next_text:
+                seen.add(url)
+                yield url
 
     def _follow_links(self, response, depth):
         """跟随页面中的链接继续爬取"""

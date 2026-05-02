@@ -26,6 +26,7 @@ const defaultSettings: AdminSettings = {
   auto_discover_enabled: false,
   auto_source_discovery_enabled: false,
   source_discovery_interval_minutes: 180,
+  crawler_proxy_url: '',
 };
 
 export default function AdminPage() {
@@ -45,6 +46,9 @@ export default function AdminPage() {
     homepage_url: '',
     category_pages: '',
     recent_pages: '',
+    search_url_template: '',
+    search_title_limit: 50,
+    search_pagination_max_pages: 200,
     max_depth: 3,
     discovery_max_depth: 1,
     enabled: true,
@@ -57,6 +61,9 @@ export default function AdminPage() {
     homepage_url: '',
     category_pages: '',
     recent_pages: '',
+    search_url_template: '',
+    search_title_limit: 50,
+    search_pagination_max_pages: 200,
     max_depth: 3,
     discovery_max_depth: 1,
     enabled: true,
@@ -108,6 +115,7 @@ export default function AdminPage() {
         auto_discover_enabled: settings.auto_discover_enabled,
         auto_source_discovery_enabled: settings.auto_source_discovery_enabled,
         source_discovery_interval_minutes: Number(settings.source_discovery_interval_minutes),
+        crawler_proxy_url: settings.crawler_proxy_url || '',
       });
       setSettings(updated);
       setMessage('调度设置已保存');
@@ -131,6 +139,9 @@ export default function AdminPage() {
         homepage_url: form.homepage_url,
         category_pages: splitLines(form.category_pages),
         recent_pages: splitLines(form.recent_pages),
+        search_url_template: form.search_url_template,
+        search_title_limit: Number(form.search_title_limit),
+        search_pagination_max_pages: Number(form.search_pagination_max_pages),
         max_depth: Number(form.max_depth),
         discovery_max_depth: Number(form.discovery_max_depth),
         enabled: form.enabled,
@@ -143,6 +154,9 @@ export default function AdminPage() {
         homepage_url: '',
         category_pages: '',
         recent_pages: '',
+        search_url_template: '',
+        search_title_limit: 50,
+        search_pagination_max_pages: 200,
         max_depth: 3,
         discovery_max_depth: 1,
         enabled: true,
@@ -181,6 +195,9 @@ export default function AdminPage() {
       homepage_url: source.homepage_url || '',
       category_pages: (source.category_pages || []).join('\n'),
       recent_pages: (source.recent_pages || []).join('\n'),
+      search_url_template: source.search_url_template || '',
+      search_title_limit: source.search_title_limit ?? 50,
+      search_pagination_max_pages: source.search_pagination_max_pages ?? 200,
       max_depth: source.max_depth ?? 3,
       discovery_max_depth: source.discovery_max_depth ?? 1,
       enabled: source.enabled,
@@ -204,6 +221,9 @@ export default function AdminPage() {
         homepage_url: editForm.homepage_url,
         category_pages: splitLines(editForm.category_pages),
         recent_pages: splitLines(editForm.recent_pages),
+        search_url_template: editForm.search_url_template,
+        search_title_limit: Number(editForm.search_title_limit),
+        search_pagination_max_pages: Number(editForm.search_pagination_max_pages),
         max_depth: Number(editForm.max_depth),
         discovery_max_depth: Number(editForm.discovery_max_depth),
         enabled: editForm.enabled,
@@ -430,6 +450,11 @@ export default function AdminPage() {
                   value={settings.source_discovery_interval_minutes}
                   onChange={(value) => setSettings((current) => ({ ...current, source_discovery_interval_minutes: value }))}
                 />
+                <TextField
+                  label="爬虫代理 URL"
+                  value={settings.crawler_proxy_url || ''}
+                  onChange={(value) => setSettings((current) => ({ ...current, crawler_proxy_url: value }))}
+                />
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
@@ -460,6 +485,9 @@ export default function AdminPage() {
                 <TextField label="域名" value={form.domain} onChange={(value) => setForm((current) => ({ ...current, domain: value }))} />
                 <TextField label="seed_url" value={form.seed_url} onChange={(value) => setForm((current) => ({ ...current, seed_url: value }))} />
                 <TextField label="首页 URL" value={form.homepage_url} onChange={(value) => setForm((current) => ({ ...current, homepage_url: value }))} />
+                <TextField label="搜索页模板" value={form.search_url_template} onChange={(value) => setForm((current) => ({ ...current, search_url_template: value }))} />
+                <NumberField label="搜索标题数" value={form.search_title_limit} onChange={(value) => setForm((current) => ({ ...current, search_title_limit: value }))} />
+                <NumberField label="搜索分页上限" value={form.search_pagination_max_pages} onChange={(value) => setForm((current) => ({ ...current, search_pagination_max_pages: value }))} />
                 <TextAreaField label="分类页列表(每行一个)" value={form.category_pages} onChange={(value) => setForm((current) => ({ ...current, category_pages: value }))} />
                 <TextAreaField label="最近更新页列表(每行一个)" value={form.recent_pages} onChange={(value) => setForm((current) => ({ ...current, recent_pages: value }))} />
                 <NumberField label="最大深度" value={form.max_depth} onChange={(value) => setForm((current) => ({ ...current, max_depth: value }))} />
@@ -498,6 +526,11 @@ export default function AdminPage() {
                         {source.last_run_at ? <div className="mt-2 text-xs text-parchment/55">上次抓取: {source.last_run_at}</div> : null}
                         {source.last_discovery_at ? <div className="mt-1 text-xs text-parchment/55">上次发现: {source.last_discovery_at}</div> : null}
                         {source.homepage_url ? <div className="mt-2 text-xs text-parchment/55">首页: {source.homepage_url}</div> : null}
+                        {source.search_url_template ? (
+                          <div className="mt-1 max-w-full break-all text-xs text-parchment/55">
+                            搜索页: {source.search_url_template}，每轮 {source.search_title_limit ?? 50} 个标题，分页上限 {source.search_pagination_max_pages ?? 200}
+                          </div>
+                        ) : null}
                         {!!source.category_pages?.length ? <div className="mt-1 text-xs text-parchment/55">分类页: {source.category_pages.length} 个</div> : null}
                         {!!source.recent_pages?.length ? <div className="mt-1 text-xs text-parchment/55">最近更新页: {source.recent_pages.length} 个</div> : null}
                         {source.notes ? <div className="mt-2 text-sm text-parchment/60">{source.notes}</div> : null}
@@ -546,6 +579,9 @@ export default function AdminPage() {
                           <TextField label="域名" value={editForm.domain} onChange={(value) => setEditForm((current) => ({ ...current, domain: value }))} />
                           <TextField label="seed_url" value={editForm.seed_url} onChange={(value) => setEditForm((current) => ({ ...current, seed_url: value }))} />
                           <TextField label="首页 URL" value={editForm.homepage_url} onChange={(value) => setEditForm((current) => ({ ...current, homepage_url: value }))} />
+                          <TextField label="搜索页模板" value={editForm.search_url_template} onChange={(value) => setEditForm((current) => ({ ...current, search_url_template: value }))} />
+                          <NumberField label="搜索标题数" value={editForm.search_title_limit} onChange={(value) => setEditForm((current) => ({ ...current, search_title_limit: value }))} />
+                          <NumberField label="搜索分页上限" value={editForm.search_pagination_max_pages} onChange={(value) => setEditForm((current) => ({ ...current, search_pagination_max_pages: value }))} />
                           <TextAreaField label="分类页列表(每行一个)" value={editForm.category_pages} onChange={(value) => setEditForm((current) => ({ ...current, category_pages: value }))} />
                           <TextAreaField label="最近更新页列表(每行一个)" value={editForm.recent_pages} onChange={(value) => setEditForm((current) => ({ ...current, recent_pages: value }))} />
                           <NumberField label="最大深度" value={editForm.max_depth} onChange={(value) => setEditForm((current) => ({ ...current, max_depth: value }))} />

@@ -10,6 +10,22 @@ from anime_spider.utils.db import MongoDB
 logger = logging.getLogger(__name__)
 
 
+class ProxyMiddleware:
+    """为爬虫请求统一注入可选代理。"""
+
+    def __init__(self, proxy_url=None):
+        self.proxy_url = str(proxy_url or '').strip()
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(crawler.settings.get('CRAWLER_PROXY_URL'))
+
+    def process_request(self, request, spider):
+        if self.proxy_url and 'proxy' not in request.meta:
+            request.meta['proxy'] = self.proxy_url
+        return None
+
+
 class RandomUserAgentMiddleware:
     """随机 User-Agent 中间件"""
 

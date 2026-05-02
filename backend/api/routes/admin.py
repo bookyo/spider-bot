@@ -27,8 +27,11 @@ class CrawlSourceCreate(BaseModel):
     homepage_url: str | None = None
     category_pages: list[str] = []
     recent_pages: list[str] = []
+    search_url_template: str | None = None
+    search_title_limit: int = Field(default=50, ge=1, le=1000)
+    search_pagination_max_pages: int = Field(default=200, ge=0, le=10000)
     max_depth: int = Field(default=3, ge=0, le=10)
-    discovery_max_depth: int = Field(default=1, ge=0, le=2)
+    discovery_max_depth: int = Field(default=1, ge=0, le=20)
     enabled: bool = True
     notes: str | None = None
 
@@ -40,8 +43,11 @@ class CrawlSourceUpdate(BaseModel):
     homepage_url: str | None = None
     category_pages: list[str] | None = None
     recent_pages: list[str] | None = None
+    search_url_template: str | None = None
+    search_title_limit: int | None = Field(default=None, ge=1, le=1000)
+    search_pagination_max_pages: int | None = Field(default=None, ge=0, le=10000)
     max_depth: int | None = Field(default=None, ge=0, le=10)
-    discovery_max_depth: int | None = Field(default=None, ge=0, le=2)
+    discovery_max_depth: int | None = Field(default=None, ge=0, le=20)
     enabled: bool | None = None
     notes: str | None = None
 
@@ -54,6 +60,7 @@ class AdminSettingsUpdate(BaseModel):
     auto_discover_enabled: bool | None = None
     auto_source_discovery_enabled: bool | None = None
     source_discovery_interval_minutes: int | None = Field(default=None, ge=5, le=1440)
+    crawler_proxy_url: str | None = None
 
 
 @router.get('/settings')
@@ -105,6 +112,9 @@ async def admin_create_source(payload: CrawlSourceCreate):
         'homepage_url': (payload.homepage_url or '').strip() or None,
         'category_pages': [str(value).strip() for value in (payload.category_pages or []) if str(value).strip()],
         'recent_pages': [str(value).strip() for value in (payload.recent_pages or []) if str(value).strip()],
+        'search_url_template': (payload.search_url_template or '').strip() or None,
+        'search_title_limit': payload.search_title_limit,
+        'search_pagination_max_pages': payload.search_pagination_max_pages,
         'max_depth': payload.max_depth,
         'discovery_max_depth': payload.discovery_max_depth,
         'enabled': payload.enabled,
@@ -142,6 +152,8 @@ async def admin_update_source(source_id: str, payload: CrawlSourceUpdate):
         updates['category_pages'] = [str(value).strip() for value in updates['category_pages'] if str(value).strip()]
     if 'recent_pages' in updates and updates['recent_pages'] is not None:
         updates['recent_pages'] = [str(value).strip() for value in updates['recent_pages'] if str(value).strip()]
+    if 'search_url_template' in updates:
+        updates['search_url_template'] = str(updates['search_url_template'] or '').strip() or None
     if 'name' in updates:
         updates['name'] = updates['name'].strip()
     updates['updated_at'] = datetime.utcnow()
@@ -214,6 +226,7 @@ async def admin_overview():
                 'auto_discover_enabled',
                 'auto_source_discovery_enabled',
                 'source_discovery_interval_minutes',
+                'crawler_proxy_url',
                 'last_incremental_started_at',
                 'last_incremental_finished_at',
                 'last_incremental_status',

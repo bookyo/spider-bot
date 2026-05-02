@@ -86,6 +86,9 @@ export async function createAdminSource(
     homepage_url?: string;
     category_pages?: string[];
     recent_pages?: string[];
+    search_url_template?: string;
+    search_title_limit?: number;
+    search_pagination_max_pages?: number;
     max_depth: number;
     discovery_max_depth?: number;
     enabled: boolean;

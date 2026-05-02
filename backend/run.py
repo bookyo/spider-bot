@@ -52,14 +52,18 @@ def run_discover(methods=None):
     process.start()
 
 
-def run_crawl(domain=None, url=None, max_depth=3):
+def run_crawl(domain=None, url=None, max_depth=3, search_discovery=False, search_pagination_max_pages=200):
     """运行站点爬虫"""
     from anime_spider.spiders.site_spider import SiteSpider
 
     settings = get_project_settings()
     process = CrawlerProcess(settings)
 
-    kwargs = {'max_depth': max_depth}
+    kwargs = {
+        'max_depth': max_depth,
+        'search_discovery': search_discovery,
+        'search_pagination_max_pages': search_pagination_max_pages,
+    }
     if domain:
         kwargs['domain'] = domain
     elif url:
@@ -195,6 +199,17 @@ def main():
         default=3,
         help='最大爬取深度 (默认: 3)',
     )
+    crawl_parser.add_argument(
+        '--search-discovery',
+        action='store_true',
+        help='搜索页发现模式：只追详情页和搜索分页，不做全站扩散',
+    )
+    crawl_parser.add_argument(
+        '--search-pagination-max-pages',
+        type=int,
+        default=200,
+        help='搜索页最多追多少个分页，0 表示不限制',
+    )
 
     incremental_parser = subparsers.add_parser('incremental', help='按动画候选执行增量巡检')
     incremental_parser.add_argument(
@@ -230,7 +245,7 @@ def main():
     if args.command == 'discover':
         run_discover(args.methods)
     elif args.command == 'crawl':
-        run_crawl(args.domain, args.url, args.max_depth)
+        run_crawl(args.domain, args.url, args.max_depth, args.search_discovery, args.search_pagination_max_pages)
     elif args.command == 'incremental':
         run_incremental(args.limit, args.min_hours)
     elif args.command == 'full':

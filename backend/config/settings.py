@@ -47,6 +47,7 @@ DNS_ENUM_PREFIXES = [
 
 # 爬取深度限制
 MAX_DEPTH = int(os.environ.get('MAX_DEPTH', '3') or 3)
+CRAWLER_PROXY_URL = os.environ.get('CRAWLER_PROXY_URL', '').strip()
 
 # 海报配置
 POSTER_DIR = os.environ.get('POSTER_DIR', 'posters')
@@ -63,6 +64,8 @@ DEFAULT_REQUEST_HEADERS = {
 
 # 中间件配置
 DOWNLOADER_MIDDLEWARES = {
+    'anime_spider.middlewares.ProxyMiddleware': 100,
+    'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
     'anime_spider.middlewares.RandomUserAgentMiddleware': 400,
     'anime_spider.middlewares.RetryMiddleware': 550,
 }

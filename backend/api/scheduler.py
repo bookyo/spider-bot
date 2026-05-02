@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote_plus
 
 from bson import ObjectId
 from api.database import get_db
@@ -20,6 +21,7 @@ DEFAULT_SETTINGS = {
     'auto_discover_enabled': False,
     'auto_source_discovery_enabled': False,
     'source_discovery_interval_minutes': 180,
+    'crawler_proxy_url': None,
 }
 
 _scheduler_task: asyncio.Task | None = None
@@ -69,6 +71,15 @@ async def get_admin_settings() -> dict:
     return await db['app_settings'].find_one({'_id': 'admin'}) or {'_id': 'admin', **DEFAULT_SETTINGS}
 
 
+def build_crawler_env(settings: dict | None = None) -> dict[str, str]:
+    settings = settings or {}
+    env = {}
+    proxy_url = str(settings.get('crawler_proxy_url') or os.environ.get('CRAWLER_PROXY_URL') or '').strip()
+    if proxy_url:
+        env['CRAWLER_PROXY_URL'] = proxy_url
+    return env
+
+
 async def run_incremental_job(force: bool = False) -> dict:
     if _incremental_lock.locked() and not force:
         return {'started': False, 'reason': 'incremental job already running'}
@@ -92,7 +103,7 @@ async def run_incremental_job(force: bool = False) -> dict:
             'incremental',
             '--limit', str(limit),
             '--min-hours', str(min_hours),
-        ])
+        ], env=build_crawler_env(settings))
         finished_at = datetime.utcnow()
         status = 'success' if code == 0 else 'failed'
 
@@ -134,6 +145,62 @@ def build_source_discovery_targets(source: dict) -> list[str]:
     return urls
 
 
+def build_search_url(template: str, title: str) -> str | None:
+    normalized_template = str(template or '').strip()
+    normalized_title = str(title or '').strip()
+    if not normalized_template or not normalized_title:
+        return None
+
+    encoded_title = quote_plus(normalized_title)
+    if '{query}' in normalized_template:
+        return normalized_template.replace('{query}', encoded_title)
+    if '{title}' in normalized_template:
+        return normalized_template.replace('{title}', encoded_title)
+    return f'{normalized_template}{encoded_title}'
+
+
+async def build_source_search_targets(source: dict) -> list[str]:
+    template = str(source.get('search_url_template') or '').strip()
+    if not template:
+        return []
+
+    db = get_db()
+    limit = min(max(int(source.get('search_title_limit') or 50), 1), 1000)
+    seen_titles: set[str] = set()
+    targets: list[str] = []
+    cursor = (
+        db['anime']
+        .find({'title': {'$type': 'string', '$ne': ''}}, {'title': 1, 'updated_at': 1, 'discovered_at': 1})
+        .sort([('updated_at', -1), ('discovered_at', -1)])
+        .limit(limit * 3)
+    )
+
+    async for doc in cursor:
+        title = str(doc.get('title') or '').strip()
+        if not title or title in seen_titles:
+            continue
+        seen_titles.add(title)
+        url = build_search_url(template, title)
+        if url:
+            targets.append(url)
+        if len(targets) >= limit:
+            break
+
+    return targets
+
+
+def build_search_crawl_args(source: dict, target: str) -> list[str]:
+    raw_max_pages = source.get('search_pagination_max_pages')
+    max_pages = int(raw_max_pages if raw_max_pages is not None else 200)
+    return [
+        'crawl',
+        '-u', target,
+        '--search-discovery',
+        '--max-depth', str(100000 if max_pages == 0 else max_pages + 1),
+        '--search-pagination-max-pages', str(max_pages),
+    ]
+
+
 async def trigger_source_crawl(source: dict) -> dict:
     args = ['crawl', '--max-depth', str(int(source.get('max_depth') or 3))]
     seed_url = str(source.get('seed_url') or '').strip()
@@ -146,7 +213,7 @@ async def trigger_source_crawl(source: dict) -> dict:
     else:
         raise ValueError('source missing domain/seed_url')
 
-    task = await spawn_backend_command(args)
+    task = await spawn_backend_command(args, env=build_crawler_env(await get_admin_settings()))
     return task
 
 
@@ -184,9 +251,11 @@ async def start_source_crawl_job(source: dict, force: bool = False) -> dict[str,
         }}
     )
 
+    settings = await get_admin_settings()
+
     async def runner():
         try:
-            code, output = await run_backend_command_stream(args)
+            code, output = await run_backend_command_stream(args, env=build_crawler_env(settings))
             finished_at = datetime.utcnow()
             status = 'success' if code == 0 else 'failed'
             await db['crawl_sources'].update_one(
@@ -264,13 +333,18 @@ async def run_source_discovery_job(force: bool = False) -> dict:
 
         for source in enabled_sources:
             targets = build_source_discovery_targets(source)
+            search_targets = await build_source_search_targets(source)
+            for target in search_targets:
+                if target not in targets:
+                    targets.append(target)
             if not targets:
                 continue
 
-            source_max_depth = min(int(source.get('discovery_max_depth') or max_depth_default), 2)
+            source_max_depth = min(int(source.get('discovery_max_depth') or max_depth_default), 20)
             for target in targets:
-                args = ['crawl', '-u', target, '--max-depth', str(source_max_depth)]
-                code, output = await run_backend_command(args)
+                is_search_target = target in search_targets
+                args = build_search_crawl_args(source, target) if is_search_target else ['crawl', '-u', target, '--max-depth', str(source_max_depth)]
+                code, output = await run_backend_command(args, env=build_crawler_env(settings))
                 started += 1
                 if code != 0:
                     failures += 1

@@ -17,6 +17,19 @@ class IkanbotAdapter(BaseSiteAdapter):
             return True
         return detector.is_detail_page(response)
 
+    def extract_detail_links(self, response):
+        links = []
+        seen = set()
+        for href in response.css('a::attr(href)').getall():
+            if not href or '/play/' not in href:
+                continue
+            url = response.urljoin(href)
+            if url in seen:
+                continue
+            seen.add(url)
+            links.append(url)
+        return links
+
     def extract_metadata(self, response, detector):
         metadata = detector.extract_metadata(response)
 

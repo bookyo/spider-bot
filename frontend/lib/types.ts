@@ -89,6 +89,7 @@ export interface AdminSettings {
   auto_discover_enabled: boolean;
   auto_source_discovery_enabled: boolean;
   source_discovery_interval_minutes: number;
+  crawler_proxy_url?: string | null;
   last_incremental_started_at?: string | null;
   last_incremental_finished_at?: string | null;
   last_incremental_status?: string | null;
@@ -108,6 +109,9 @@ export interface CrawlSource {
   homepage_url?: string | null;
   category_pages?: string[];
   recent_pages?: string[];
+  search_url_template?: string | null;
+  search_title_limit?: number | null;
+  search_pagination_max_pages?: number | null;
   max_depth: number;
   discovery_max_depth?: number;
   enabled: boolean;
