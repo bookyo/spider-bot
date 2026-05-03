@@ -111,7 +111,7 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
             f.write(data)
 
         logger.info(f'[Poster] 海报已保存: {filepath} ({width}x{height})')
-        return filepath
+        return f'/posters/{filename}'
 
     except requests.RequestException as e:
         response = getattr(e, 'response', None)

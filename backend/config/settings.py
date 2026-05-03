@@ -4,6 +4,8 @@ from config.env import load_backend_env
 
 load_backend_env()
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 BOT_NAME = 'anime_spider'
 SPIDER_MODULES = ['anime_spider.spiders']
 NEWSPIDER_MODULE = 'anime_spider.spiders'
@@ -50,7 +52,7 @@ MAX_DEPTH = int(os.environ.get('MAX_DEPTH', '3') or 3)
 CRAWLER_PROXY_URL = os.environ.get('CRAWLER_PROXY_URL', '').strip()
 
 # 海报配置
-POSTER_DIR = os.environ.get('POSTER_DIR', 'posters')
+POSTER_DIR = os.environ.get('POSTER_DIR', os.path.join(BASE_DIR, 'posters'))
 POSTER_MIN_WIDTH = int(os.environ.get('POSTER_MIN_WIDTH', '200') or 200)
 POSTER_MIN_HEIGHT = int(os.environ.get('POSTER_MIN_HEIGHT', '300') or 300)
 POSTER_TIMEOUT = int(os.environ.get('POSTER_TIMEOUT', '15') or 15)

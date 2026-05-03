@@ -265,6 +265,9 @@ RestartSec=3
 WantedBy=multi-user.target
 
 保存为 /etc/systemd/system/spider-acg-backend.service
+sudo mkdir -p /www/spider-bot/backend/posters
+sudo chown -R www-data:www-data /www/spider-bot/backend/posters
+sudo chmod -R 755 /www/spider-bot/backend/posters
 sudo systemctl daemon-reload
 sudo systemctl enable spider-acg-backend
 sudo systemctl start spider-acg-backend
