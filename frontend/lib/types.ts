@@ -122,6 +122,7 @@ export interface CrawlSource {
   last_run_output?: string | null;
   last_discovery_at?: string | null;
   last_discovery_status?: string | null;
+  last_discovery_output?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }

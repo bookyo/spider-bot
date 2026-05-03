@@ -539,6 +539,11 @@ export default function AdminPage() {
                             {source.last_run_output}
                           </pre>
                         ) : null}
+                        {source.last_discovery_output ? (
+                          <pre className="scrollbar-thin mt-3 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-ember/20 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
+                            {source.last_discovery_output}
+                          </pre>
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button

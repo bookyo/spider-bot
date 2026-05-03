@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote_plus
+from urllib.parse import urlparse
 
 from bson import ObjectId
 from api.database import get_db
@@ -139,8 +140,11 @@ def build_source_discovery_targets(source: dict) -> list[str]:
 
     domain = str(source.get('domain') or '').strip()
     if not urls and domain:
-        push(f'https://{domain}')
-        push(f'http://{domain}')
+        parsed = urlparse(domain if '://' in domain else f'https://{domain}')
+        host = parsed.netloc or parsed.path
+        if host:
+            push(f'https://{host}')
+            push(f'http://{host}')
 
     return urls
 
@@ -317,6 +321,7 @@ async def run_source_discovery_job(force: bool = False) -> dict:
             {'$set': {
                 'last_source_discovery_started_at': started_at,
                 'last_source_discovery_status': 'running',
+                'last_source_discovery_output': 'source discovery started; loading enabled sources...',
                 'updated_at': started_at,
             }}
         )
@@ -338,26 +343,67 @@ async def run_source_discovery_job(force: bool = False) -> dict:
                 if target not in targets:
                     targets.append(target)
             if not targets:
+                outputs.append(f"[{source.get('name')}] skipped: no discovery targets")
                 continue
 
             source_max_depth = min(int(source.get('discovery_max_depth') or max_depth_default), 20)
+            source_failures = 0
+            source_outputs: list[str] = []
+            source_header = (
+                f"[{source.get('name')}] discovery targets={len(targets)}, "
+                f"entry_targets={len(targets) - len(search_targets)}, "
+                f"search_targets={len(search_targets)}, depth={source_max_depth}"
+            )
+            outputs.append(source_header)
+            source_outputs.append(source_header)
+            await db['crawl_sources'].update_one(
+                {'_id': source['_id']},
+                {'$set': {
+                    'last_discovery_at': datetime.utcnow(),
+                    'last_discovery_status': 'running',
+                    'last_discovery_output': source_header,
+                    'updated_at': datetime.utcnow(),
+                }}
+            )
+
             for target in targets:
                 is_search_target = target in search_targets
                 args = build_search_crawl_args(source, target) if is_search_target else ['crawl', '-u', target, '--max-depth', str(source_max_depth)]
+                mode = 'search' if is_search_target else 'entry'
+                current_line = f"[{source.get('name')}] running {mode}: {target}\nargs={' '.join(args)}"
+                await db['app_settings'].update_one(
+                    {'_id': 'admin'},
+                    {'$set': {
+                        'last_source_discovery_status': 'running',
+                        'last_source_discovery_output': '\n\n'.join([*outputs, current_line])[-4000:],
+                        'updated_at': datetime.utcnow(),
+                    }}
+                )
+                await db['crawl_sources'].update_one(
+                    {'_id': source['_id']},
+                    {'$set': {
+                        'last_discovery_status': 'running',
+                        'last_discovery_output': '\n\n'.join([*source_outputs, current_line])[-4000:],
+                        'updated_at': datetime.utcnow(),
+                    }}
+                )
                 code, output = await run_backend_command(args, env=build_crawler_env(settings))
                 started += 1
                 if code != 0:
                     failures += 1
-                compact = f"[{source.get('name')}] {target} -> code={code}"
+                    source_failures += 1
+                compact = f"[{source.get('name')}] {mode} {target} -> code={code}"
                 if output.strip():
                     compact += f"\n{output[-800:]}"
                 outputs.append(compact)
+                source_outputs.append(compact)
 
             await db['crawl_sources'].update_one(
                 {'_id': source['_id']},
                 {'$set': {
                     'last_discovery_at': datetime.utcnow(),
-                    'last_discovery_status': 'success' if failures == 0 else 'partial',
+                    'last_discovery_status': 'success' if source_failures == 0 else 'partial',
+                    'last_discovery_output': '\n\n'.join(source_outputs)[-4000:],
                     'updated_at': datetime.utcnow(),
                 }}
             )
@@ -392,6 +438,20 @@ async def start_source_discovery_job(force: bool = False) -> dict:
     if is_source_discovery_running() and not force:
         return {'started': False, 'reason': 'source discovery job already running'}
 
+    db = get_db()
+    started_at = datetime.utcnow()
+    if db is not None:
+        await db['app_settings'].update_one(
+            {'_id': 'admin'},
+            {'$set': {
+                'last_source_discovery_started_at': started_at,
+                'last_source_discovery_finished_at': None,
+                'last_source_discovery_status': 'running',
+                'last_source_discovery_output': 'source discovery queued in FastAPI background task',
+                'updated_at': started_at,
+            }}
+        )
+
     async def runner():
         try:
             await run_source_discovery_job(force=True)
@@ -404,7 +464,10 @@ async def start_source_discovery_job(force: bool = False) -> dict:
                     {'$set': {
                         'last_source_discovery_finished_at': now,
                         'last_source_discovery_status': 'cancelled',
-                        'last_source_discovery_output': 'source discovery task cancelled',
+                        'last_source_discovery_output': (
+                            'source discovery task cancelled; usually caused by backend shutdown/restart '
+                            'while the in-process background task was running'
+                        ),
                         'updated_at': now,
                     }}
                 )
@@ -425,7 +488,7 @@ async def start_source_discovery_job(force: bool = False) -> dict:
                 )
 
     _source_discovery_task = asyncio.create_task(runner(), name='source-discovery-job')
-    return {'started': True, 'status': 'running', 'mode': 'background'}
+    return {'started': True, 'status': 'running', 'mode': 'background', 'started_at': started_at}
 
 
 async def scheduler_loop():
