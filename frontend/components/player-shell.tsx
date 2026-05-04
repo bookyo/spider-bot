@@ -147,7 +147,7 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
               <div>
                 <div className="mb-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.24em] text-ash">
-                  <span>{anime.source_domain || '聚合源'}</span>
+                  <span>{'聚合源'}</span>
                   <span>{anime.year || '未知年代'}</span>
                   <span>{anime.total_episode_count || 0} 集</span>
                 </div>
@@ -195,24 +195,24 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
               <div className="mb-3 text-xs uppercase tracking-[0.28em] text-ash">分集列表</div>
               <div className="scrollbar-thin max-h-[30rem] overflow-y-auto pr-1">
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
-                {(selectedSource?.episodes || []).map((episode: Episode) => {
-                  const active = episode.url === selectedEpisode?.url;
-                  return (
-                    <button
-                      key={episode.url}
-                      type="button"
-                      onClick={() => setSelectedEpisodeUrl(episode.url)}
-                      className={cn(
-                        'rounded-2xl border px-3 py-3 text-sm transition',
-                        active
-                          ? 'border-ember bg-ember text-black'
-                          : 'border-white/10 bg-white/[0.03] text-parchment/80 hover:border-white/20 hover:bg-white/[0.06]',
-                      )}
-                    >
-                      {episode.episode || '正片'}
-                    </button>
-                  );
-                })}
+                  {(selectedSource?.episodes || []).map((episode: Episode) => {
+                    const active = episode.url === selectedEpisode?.url;
+                    return (
+                      <button
+                        key={episode.url}
+                        type="button"
+                        onClick={() => setSelectedEpisodeUrl(episode.url)}
+                        className={cn(
+                          'rounded-2xl border px-3 py-3 text-sm transition',
+                          active
+                            ? 'border-ember bg-ember text-black'
+                            : 'border-white/10 bg-white/[0.03] text-parchment/80 hover:border-white/20 hover:bg-white/[0.06]',
+                        )}
+                      >
+                        {episode.episode || '正片'}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
