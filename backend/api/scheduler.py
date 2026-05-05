@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 from bson import ObjectId
 from api.database import get_db
 from api.task_runner import run_backend_command, run_backend_command_stream, spawn_backend_command
+from anime_spider.utils.douban_enrichment import fetch_douban_subject_metadata, search_douban_subject_url
+from anime_spider.utils.poster import download_poster
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +25,20 @@ DEFAULT_SETTINGS = {
     'auto_source_discovery_enabled': False,
     'source_discovery_interval_minutes': 180,
     'crawler_proxy_url': None,
+    'douban_backfill_enabled': False,
+    'douban_backfill_interval_minutes': 60,
+    'douban_backfill_limit': 50,
+    'douban_search_url': 'https://s.stdlang.com/search',
+    'douban_backfill_timeout_seconds': 20,
 }
 
 _scheduler_task: asyncio.Task | None = None
 _source_discovery_task: asyncio.Task | None = None
+_douban_backfill_task: asyncio.Task | None = None
 _source_crawl_tasks: dict[str, asyncio.Task] = {}
 _incremental_lock = asyncio.Lock()
 _source_discovery_lock = asyncio.Lock()
+_douban_backfill_lock = asyncio.Lock()
 
 
 async def ensure_admin_settings():
@@ -53,6 +62,10 @@ async def ensure_admin_settings():
             'last_source_discovery_finished_at': None,
             'last_source_discovery_status': None,
             'last_source_discovery_output': None,
+            'last_douban_backfill_started_at': None,
+            'last_douban_backfill_finished_at': None,
+            'last_douban_backfill_status': None,
+            'last_douban_backfill_output': None,
         }
         await col.insert_one(payload)
         return
@@ -72,6 +85,14 @@ async def get_admin_settings() -> dict:
     return await db['app_settings'].find_one({'_id': 'admin'}) or {'_id': 'admin', **DEFAULT_SETTINGS}
 
 
+async def _update_backfill_status(payload: dict[str, Any]) -> None:
+    db = get_db()
+    if db is None:
+        return
+    payload['updated_at'] = datetime.utcnow()
+    await db['app_settings'].update_one({'_id': 'admin'}, {'$set': payload})
+
+
 def build_crawler_env(settings: dict | None = None) -> dict[str, str]:
     settings = settings or {}
     env = {}
@@ -79,6 +100,11 @@ def build_crawler_env(settings: dict | None = None) -> dict[str, str]:
     if proxy_url:
         env['CRAWLER_PROXY_URL'] = proxy_url
     return env
+
+
+def build_douban_proxy_url(settings: dict | None = None) -> str:
+    settings = settings or {}
+    return str(settings.get('crawler_proxy_url') or os.environ.get('CRAWLER_PROXY_URL') or '').strip()
 
 
 async def run_incremental_job(force: bool = False) -> dict:
@@ -118,6 +144,159 @@ async def run_incremental_job(force: bool = False) -> dict:
             }}
         )
         return {'started': True, 'status': status, 'code': code, 'output': output[-4000:]}
+
+
+async def run_douban_backfill_job(force: bool = False) -> dict:
+    if _douban_backfill_lock.locked() and not force:
+        return {'started': False, 'reason': 'douban backfill job already running'}
+
+    async with _douban_backfill_lock:
+        db = get_db()
+        settings = await get_admin_settings()
+        started_at = datetime.utcnow()
+        await _update_backfill_status({
+            'last_douban_backfill_started_at': started_at,
+            'last_douban_backfill_finished_at': None,
+            'last_douban_backfill_status': 'running',
+            'last_douban_backfill_output': 'douban backfill started',
+        })
+
+        limit = max(int(settings.get('douban_backfill_limit') or 50), 1)
+        search_url = str(settings.get('douban_search_url') or 'https://s.stdlang.com/search').strip()
+        timeout = max(int(settings.get('douban_backfill_timeout_seconds') or 20), 5)
+        proxy_url = build_douban_proxy_url(settings)
+
+        cursor = db['anime'].find(
+            {
+                '$or': [
+                    {'poster_local': {'$in': [None, '']}},
+                    {'poster_local': {'$exists': False}},
+                ],
+                'title': {'$type': 'string', '$ne': ''},
+            },
+            {'title': 1, 'year': 1, 'poster_url': 1, 'poster_local': 1, 'director': 1, 'synopsis': 1, 'voice_actors': 1, 'genres': 1},
+        ).sort([('updated_at', -1), ('discovered_at', -1)]).limit(limit)
+
+        outputs: list[str] = []
+        matched = 0
+        updated = 0
+        failed = 0
+
+        async for doc in cursor:
+            title = str(doc.get('title') or '').strip()
+            year = doc.get('year')
+            if not title:
+                continue
+
+            search_result = search_douban_subject_url(title, year, search_url=search_url, proxy_url=proxy_url)
+            if not search_result:
+                outputs.append(f"[skip] {title} -> no douban result")
+                continue
+
+            matched += 1
+            subject_url = search_result['url']
+            outputs.append(f"[match] {title} -> {subject_url}")
+
+            try:
+                detail = fetch_douban_subject_metadata(subject_url, timeout=timeout, proxy_url=proxy_url)
+                metadata = detail.get('metadata') or {}
+                poster_url = metadata.get('poster_url') or doc.get('poster_url')
+                poster_local = doc.get('poster_local')
+                if poster_url and not poster_local:
+                    poster_local = download_poster(
+                        poster_url,
+                        str(doc.get('_id') or '').replace('ObjectId(', '').replace(')', '') or title,
+                    )
+
+                update_data = {}
+                for field in ('title', 'original_title', 'year', 'director', 'synopsis', 'voice_actors', 'genres'):
+                    new_value = metadata.get(field)
+                    old_value = doc.get(field)
+                    if new_value and not old_value:
+                        update_data[field] = new_value
+                if poster_url and not doc.get('poster_url'):
+                    update_data['poster_url'] = poster_url
+                if poster_local and not doc.get('poster_local'):
+                    update_data['poster_local'] = poster_local
+                if subject_url not in (doc.get('source_urls') or []):
+                    update_data['source_urls'] = (doc.get('source_urls') or []) + [subject_url]
+                if update_data:
+                    update_data['updated_at'] = datetime.utcnow()
+                    await db['anime'].update_one({'_id': doc['_id']}, {'$set': update_data})
+                    updated += 1
+                    outputs.append(f"[update] {title} -> {', '.join(update_data.keys())}")
+                else:
+                    outputs.append(f"[noop] {title}")
+            except Exception as exc:
+                failed += 1
+                outputs.append(f"[error] {title} -> {exc}")
+
+        finished_at = datetime.utcnow()
+        status = 'success' if failed == 0 else ('partial' if updated else 'failed')
+        await _update_backfill_status({
+            'last_douban_backfill_started_at': started_at,
+            'last_douban_backfill_finished_at': finished_at,
+            'last_douban_backfill_status': status,
+            'last_douban_backfill_output': '\n'.join(outputs)[-4000:] if outputs else None,
+        })
+        return {
+            'started': True,
+            'status': status,
+            'matched': matched,
+            'updated': updated,
+            'failed': failed,
+            'output': '\n'.join(outputs)[-4000:] if outputs else '',
+        }
+
+
+def is_douban_backfill_running() -> bool:
+    return _douban_backfill_lock.locked() or (_douban_backfill_task is not None and not _douban_backfill_task.done())
+
+
+async def start_douban_backfill_job(force: bool = False) -> dict:
+    global _douban_backfill_task
+
+    if is_douban_backfill_running() and not force:
+        return {'started': False, 'reason': 'douban backfill job already running'}
+
+    db = get_db()
+    started_at = datetime.utcnow()
+    if db is not None:
+        await _update_backfill_status({
+            'last_douban_backfill_started_at': started_at,
+            'last_douban_backfill_finished_at': None,
+            'last_douban_backfill_status': 'running',
+            'last_douban_backfill_output': 'douban backfill queued in FastAPI background task',
+        })
+
+    async def runner():
+        try:
+            await run_douban_backfill_job(force=True)
+        except asyncio.CancelledError:
+            db = get_db()
+            if db is not None:
+                now = datetime.utcnow()
+                await _update_backfill_status({
+                    'last_douban_backfill_started_at': started_at,
+                    'last_douban_backfill_finished_at': now,
+                    'last_douban_backfill_status': 'cancelled',
+                    'last_douban_backfill_output': 'douban backfill task cancelled',
+                })
+            raise
+        except Exception as exc:
+            logger.exception('[Scheduler] douban backfill task failed: %s', exc)
+            db = get_db()
+            if db is not None:
+                now = datetime.utcnow()
+                await _update_backfill_status({
+                    'last_douban_backfill_started_at': started_at,
+                    'last_douban_backfill_finished_at': now,
+                    'last_douban_backfill_status': 'failed',
+                    'last_douban_backfill_output': str(exc)[-4000:],
+                })
+
+    _douban_backfill_task = asyncio.create_task(runner(), name='douban-backfill-job')
+    return {'started': True, 'status': 'running', 'mode': 'background', 'started_at': started_at}
 
 
 def build_source_discovery_targets(source: dict) -> list[str]:
@@ -515,6 +694,16 @@ async def scheduler_loop():
                 if due and not is_source_discovery_running():
                     logger.info('[Scheduler] running source discovery job')
                     await start_source_discovery_job()
+            if settings.get('douban_backfill_enabled'):
+                interval = max(int(settings.get('douban_backfill_interval_minutes') or 60), 5)
+                last_started = settings.get('last_douban_backfill_started_at')
+                now = datetime.utcnow()
+                due = True
+                if last_started:
+                    due = (now - last_started).total_seconds() >= interval * 60
+                if due and not is_douban_backfill_running():
+                    logger.info('[Scheduler] running douban backfill job')
+                    await start_douban_backfill_job()
             await asyncio.sleep(30)
         except asyncio.CancelledError:
             raise
@@ -536,7 +725,7 @@ async def start_scheduler():
 
 
 async def stop_scheduler():
-    global _scheduler_task, _source_discovery_task
+    global _scheduler_task, _source_discovery_task, _douban_backfill_task
     if _scheduler_task:
         _scheduler_task.cancel()
         try:
@@ -551,6 +740,13 @@ async def stop_scheduler():
         except asyncio.CancelledError:
             pass
     _source_discovery_task = None
+    if _douban_backfill_task and not _douban_backfill_task.done():
+        _douban_backfill_task.cancel()
+        try:
+            await _douban_backfill_task
+        except asyncio.CancelledError:
+            pass
+    _douban_backfill_task = None
     for task in list(_source_crawl_tasks.values()):
         if not task.done():
             task.cancel()

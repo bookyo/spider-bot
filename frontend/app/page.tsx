@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { AnimeCard } from '@/components/anime-card';
+import { formatCompactNumber } from '@/lib/format';
 import { getAnimeFilters, getAnimeList, getStats } from '@/lib/server-api';
 
 export const metadata: Metadata = {
@@ -60,15 +61,15 @@ export default async function Home({
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-2">
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">
                 <div className="text-xs uppercase tracking-[0.24em] text-ash">可播动漫</div>
-                <div className="mt-4 text-4xl font-semibold text-parchment">{list.meta.total}</div>
+                <div className="mt-4 text-4xl font-semibold text-parchment">{formatCompactNumber(list.meta.total)}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">
                 <div className="text-xs uppercase tracking-[0.24em] text-ash">总线路</div>
-                <div className="mt-4 text-4xl font-semibold text-parchment">{stats.total_play_sources}</div>
+                <div className="mt-4 text-4xl font-semibold text-parchment">{formatCompactNumber(stats.total_play_sources)}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">
                 <div className="text-xs uppercase tracking-[0.24em] text-ash">动漫站点</div>
-                <div className="mt-4 text-4xl font-semibold text-parchment">{stats.anime_sites}</div>
+                <div className="mt-4 text-4xl font-semibold text-parchment">{formatCompactNumber(stats.anime_sites)}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">
                 <div className="text-xs uppercase tracking-[0.24em] text-ash">平均质量</div>

@@ -90,6 +90,11 @@ export interface AdminSettings {
   auto_source_discovery_enabled: boolean;
   source_discovery_interval_minutes: number;
   crawler_proxy_url?: string | null;
+  douban_backfill_enabled?: boolean;
+  douban_backfill_interval_minutes?: number;
+  douban_backfill_limit?: number;
+  douban_search_url?: string | null;
+  douban_backfill_timeout_seconds?: number;
   last_incremental_started_at?: string | null;
   last_incremental_finished_at?: string | null;
   last_incremental_status?: string | null;
@@ -98,6 +103,10 @@ export interface AdminSettings {
   last_source_discovery_finished_at?: string | null;
   last_source_discovery_status?: string | null;
   last_source_discovery_output?: string | null;
+  last_douban_backfill_started_at?: string | null;
+  last_douban_backfill_finished_at?: string | null;
+  last_douban_backfill_status?: string | null;
+  last_douban_backfill_output?: string | null;
   updated_at?: string | null;
 }
 
@@ -112,6 +121,7 @@ export interface CrawlSource {
   search_url_template?: string | null;
   search_title_limit?: number | null;
   search_pagination_max_pages?: number | null;
+  douban_backfill_timeout_seconds?: number | null;
   max_depth: number;
   discovery_max_depth?: number;
   enabled: boolean;
@@ -128,7 +138,7 @@ export interface CrawlSource {
 }
 
 export interface AdminOverview {
-  settings: Omit<AdminSettings, '_id' | 'updated_at'>;
+  settings: Omit<AdminSettings, '_id'>;
   source_count: number;
   enabled_source_count: number;
 }

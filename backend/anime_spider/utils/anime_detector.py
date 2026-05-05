@@ -549,6 +549,10 @@ class AnimeDetector:
 
     def _extract_poster(self, response):
         """提取海报图片"""
+        douban_poster = self._extract_douban_poster(response)
+        if douban_poster:
+            return douban_poster
+
         poster_selectors = [
             'meta[property="og:image"]::attr(content)',
             '.stui-vodlist__thumb img::attr(data-original)',  # MacCMS 樱花动漫
@@ -565,9 +569,49 @@ class AnimeDetector:
         for selector in poster_selectors:
             url = response.css(selector).get()
             if url and not url.endswith('load.gif'):  # 跳过懒加载占位图
-                return response.urljoin(url)
+                return self._normalize_poster_url(response.urljoin(url))
 
         return None
+
+    def _extract_douban_poster(self, response):
+        if 'douban.com' not in response.url:
+            return None
+
+        json_ld = response.css('script[type="application/ld+json"]::text').getall()
+        for script in json_ld:
+            try:
+                data = json.loads(script)
+                payloads = data if isinstance(data, list) else [data]
+                for payload in payloads:
+                    if not isinstance(payload, dict):
+                        continue
+                    image = payload.get('image')
+                    if isinstance(image, list):
+                        image = image[0] if image else None
+                    if isinstance(image, dict):
+                        image = image.get('url') or image.get('@id')
+                    if image:
+                        return self._normalize_douban_poster_url(response.urljoin(str(image)))
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+        og_image = response.css('meta[property="og:image"]::attr(content)').get()
+        if og_image:
+            return self._normalize_douban_poster_url(response.urljoin(og_image))
+
+        return None
+
+    def _normalize_poster_url(self, url):
+        if not url:
+            return None
+        if 'doubanio.com' in url or 'douban.com' in url:
+            return self._normalize_douban_poster_url(url)
+        return url
+
+    def _normalize_douban_poster_url(self, url):
+        if not url:
+            return None
+        return str(url).replace('s_ratio_poster', 'm')
 
     def _extract_genres(self, response):
         """提取类型标签"""

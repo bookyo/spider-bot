@@ -132,6 +132,12 @@ export async function runAdminSourceDiscovery(apiKey: string) {
   });
 }
 
+export async function runAdminDoubanBackfill(apiKey: string) {
+  return adminFetch<{ started: boolean; status?: string; reason?: string; output?: string; matched?: number; updated?: number; failed?: number }>('/api/admin/tasks/douban-backfill/run', apiKey, {
+    method: 'POST',
+  });
+}
+
 export function resolvePosterUrl(posterLocal?: string | null, posterRemote?: string | null) {
   if (posterLocal) {
     const normalized = posterLocal.startsWith('/') ? posterLocal : `/${posterLocal}`;

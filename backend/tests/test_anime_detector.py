@@ -5,6 +5,21 @@ from unittest.mock import MagicMock
 from anime_spider.utils.anime_detector import AnimeDetector
 
 
+class _SelectorList:
+    def __init__(self, values=None, nodes=None):
+        self.values = values or []
+        self.nodes = nodes or []
+
+    def get(self):
+        return self.values[0] if self.values else None
+
+    def getall(self):
+        return self.values
+
+    def __iter__(self):
+        return iter(self.nodes)
+
+
 class TestAnimeDetector(unittest.TestCase):
     """测试动画内容检测器"""
 
@@ -18,23 +33,17 @@ class TestAnimeDetector(unittest.TestCase):
         response.text = text
         response.css = MagicMock(side_effect=lambda sel: self._css_handler(sel, css_map or {}))
         response.xpath = MagicMock(return_value=MagicMock(getall=MagicMock(return_value=[])))
+        response.urljoin = MagicMock(side_effect=lambda value: value)
         return response
 
     def _css_handler(self, selector, css_map):
         """模拟 CSS 选择器"""
-        mock = MagicMock()
         if selector in css_map:
             value = css_map[selector]
             if isinstance(value, list):
-                mock.getall = MagicMock(return_value=value)
-                mock.get = MagicMock(return_value=value[0] if value else None)
-            else:
-                mock.get = MagicMock(return_value=value)
-                mock.getall = MagicMock(return_value=[value] if value else [])
-        else:
-            mock.get = MagicMock(return_value=None)
-            mock.getall = MagicMock(return_value=[])
-        return mock
+                return _SelectorList(values=value)
+            return _SelectorList(values=[value] if value else [])
+        return _SelectorList()
 
     def test_detect_anime_page_by_url(self):
         """通过 URL 模式检测动漫页面"""
@@ -135,6 +144,23 @@ class TestAnimeDetector(unittest.TestCase):
         )
         poster = self.detector._extract_poster(response)
         self.assertIsNotNone(poster)
+
+    def test_extract_douban_poster_uses_large_image_from_json_ld(self):
+        """豆瓣 subject 页优先从 JSON-LD image 提取大图。"""
+        response = self._mock_response(
+            url='https://movie.douban.com/subject/37116612/',
+            text='',
+            css_map={
+                'script[type="application/ld+json"]::text': (
+                    '{"@type":"Movie","image":"https://img3.doubanio.com/view/photo/s_ratio_poster/public/p2930445903.jpg"}'
+                ),
+            },
+        )
+        poster = self.detector._extract_poster(response)
+        self.assertEqual(
+            poster,
+            'https://img3.doubanio.com/view/photo/m/public/p2930445903.jpg',
+        )
 
     def test_extract_genres(self):
         """提取类型标签"""

@@ -7,6 +7,7 @@ import {
   getAdminOverview,
   getAdminSettings,
   getAdminSources,
+  runAdminDoubanBackfill,
   runAdminIncremental,
   runAdminSourceDiscovery,
   runAdminSource,
@@ -27,6 +28,11 @@ const defaultSettings: AdminSettings = {
   auto_source_discovery_enabled: false,
   source_discovery_interval_minutes: 180,
   crawler_proxy_url: '',
+  douban_backfill_enabled: false,
+  douban_backfill_interval_minutes: 60,
+  douban_backfill_limit: 50,
+  douban_search_url: 'https://s.stdlang.com/search',
+  douban_backfill_timeout_seconds: 20,
 };
 
 export default function AdminPage() {
@@ -116,6 +122,11 @@ export default function AdminPage() {
         auto_source_discovery_enabled: settings.auto_source_discovery_enabled,
         source_discovery_interval_minutes: Number(settings.source_discovery_interval_minutes),
         crawler_proxy_url: settings.crawler_proxy_url || '',
+        douban_backfill_enabled: settings.douban_backfill_enabled,
+        douban_backfill_interval_minutes: Number(settings.douban_backfill_interval_minutes),
+        douban_backfill_limit: Number(settings.douban_backfill_limit),
+        douban_search_url: settings.douban_search_url || 'https://s.stdlang.com/search',
+        douban_backfill_timeout_seconds: Number(settings.douban_backfill_timeout_seconds),
       });
       setSettings(updated);
       setMessage('调度设置已保存');
@@ -307,6 +318,21 @@ export default function AdminPage() {
     }
   }
 
+  async function handleRunDoubanBackfill() {
+    setLoading(true);
+    setMessage('');
+    setError('');
+    try {
+      const result = await runAdminDoubanBackfill(apiKey);
+      setMessage(result.started ? `豆瓣补齐任务已启动：${result.status || 'running'}` : result.reason || '未启动');
+      await loadAll(apiKey);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '豆瓣补齐任务失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-grain px-4 py-8 md:px-8 xl:px-10">
       <div className="mx-auto max-w-[1600px]">
@@ -474,6 +500,71 @@ export default function AdminPage() {
               {overview?.settings.last_source_discovery_output ? (
                 <pre className="scrollbar-thin mt-5 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
                   {overview.settings.last_source_discovery_output}
+                </pre>
+              ) : null}
+            </section>
+
+            <section className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-semibold text-parchment">豆瓣补齐任务</h2>
+                  <p className="mt-2 text-sm text-parchment/70">扫描 `poster_local` 为空的数据，通过 SearXNG 搜索豆瓣 subject 页，补齐年份、导演、简介与海报。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRunDoubanBackfill}
+                  disabled={loading}
+                  className="rounded-full border border-ember/40 bg-ember/15 px-4 py-2 text-sm text-parchment transition hover:bg-ember/25"
+                >
+                  立即执行豆瓣补齐
+                </button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ToggleField
+                  label="启用豆瓣补齐"
+                  checked={!!settings.douban_backfill_enabled}
+                  onChange={(value) => setSettings((current) => ({ ...current, douban_backfill_enabled: value }))}
+                />
+                <NumberField
+                  label="补齐周期(分钟)"
+                  value={settings.douban_backfill_interval_minutes || 60}
+                  onChange={(value) => setSettings((current) => ({ ...current, douban_backfill_interval_minutes: value }))}
+                />
+                <NumberField
+                  label="每轮补齐数量"
+                  value={settings.douban_backfill_limit || 50}
+                  onChange={(value) => setSettings((current) => ({ ...current, douban_backfill_limit: value }))}
+                />
+                <TextField
+                  label="SearXNG 搜索地址"
+                  value={settings.douban_search_url || 'https://s.stdlang.com/search'}
+                  onChange={(value) => setSettings((current) => ({ ...current, douban_search_url: value }))}
+                />
+                <NumberField
+                  label="豆瓣解析超时(秒)"
+                  value={settings.douban_backfill_timeout_seconds || 20}
+                  onChange={(value) => setSettings((current) => ({ ...current, douban_backfill_timeout_seconds: value }))}
+                />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={loading}
+                  className="rounded-2xl bg-ember px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110"
+                >
+                  保存豆瓣补齐设置
+                </button>
+                <div className="flex items-center text-sm text-parchment/60">
+                  subject 页会走代理，海报下载直连，不走代理。
+                </div>
+              </div>
+
+              {overview?.settings.last_douban_backfill_output ? (
+                <pre className="scrollbar-thin mt-5 max-w-full overflow-auto whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/30 p-4 text-xs leading-6 text-parchment/75">
+                  {overview.settings.last_douban_backfill_output}
                 </pre>
               ) : null}
             </section>

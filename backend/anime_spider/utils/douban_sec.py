@@ -21,6 +21,18 @@ DOUBAN_HEADERS = {
 }
 
 
+def _build_proxy_kwargs(proxy_url):
+    proxy = str(proxy_url or '').strip()
+    if not proxy:
+        return {}
+    return {
+        'proxies': {
+            'http': proxy,
+            'https': proxy,
+        }
+    }
+
+
 def is_douban_url(url):
     netloc = urlparse(str(url or '')).netloc.lower()
     return netloc == 'douban.com' or netloc.endswith('.douban.com')
@@ -30,7 +42,7 @@ def is_douban_sec_url(url):
     return urlparse(str(url or '')).netloc.lower() == 'sec.douban.com'
 
 
-def resolve_douban_response(url, timeout=20):
+def resolve_douban_response(url, timeout=20, proxy_url=None):
     """请求豆瓣页面，遇到 sec challenge 时自动计算 sol 并重试目标页。"""
     session = requests.Session()
     response = session.get(
@@ -38,13 +50,14 @@ def resolve_douban_response(url, timeout=20):
         headers=DOUBAN_HEADERS,
         allow_redirects=True,
         timeout=timeout,
+        **_build_proxy_kwargs(proxy_url),
     )
 
     if not is_douban_sec_url(response.url):
         return response
 
     logger.info('[Douban] 命中 sec challenge: %s', response.url)
-    passed = _pass_sec_challenge(session, response, timeout=timeout)
+    passed = _pass_sec_challenge(session, response, timeout=timeout, proxy_url=proxy_url)
     if not passed:
         return response
 
@@ -54,6 +67,7 @@ def resolve_douban_response(url, timeout=20):
         headers={**DOUBAN_HEADERS, 'Referer': response.url},
         allow_redirects=True,
         timeout=timeout,
+        **_build_proxy_kwargs(proxy_url),
     )
 
 
@@ -68,7 +82,7 @@ def build_scrapy_html_response(request, resolved_response):
     )
 
 
-def _pass_sec_challenge(session, response, timeout=20):
+def _pass_sec_challenge(session, response, timeout=20, proxy_url=None):
     text = response.text
     tok = _extract_hidden_value(text, 'tok')
     cha = _extract_hidden_value(text, 'cha')
@@ -97,6 +111,7 @@ def _pass_sec_challenge(session, response, timeout=20):
         },
         allow_redirects=False,
         timeout=timeout,
+        **_build_proxy_kwargs(proxy_url),
     )
 
     if post_response.status_code not in {301, 302, 303, 307, 308}:

@@ -36,8 +36,9 @@ class TestPosterDownloader(unittest.TestCase):
 
         result = download_poster('https://example.com/poster.jpg', 'test_key', self.tmp_dir)
         self.assertIsNotNone(result)
-        self.assertTrue(os.path.exists(result))
+        self.assertTrue(result.startswith('/posters/'))
         self.assertTrue(result.endswith('.jpg'))
+        self.assertTrue(os.path.exists(os.path.join(self.tmp_dir, os.path.basename(result))))
 
     @patch('anime_spider.utils.poster.requests.get')
     def test_reject_horizontal_poster(self, mock_get):
@@ -111,6 +112,7 @@ class TestPosterDownloader(unittest.TestCase):
 
             result = download_poster(f'https://example.com/poster.{ext}', f'key_{ext}', self.tmp_dir)
             self.assertIsNotNone(result)
+            self.assertTrue(result.startswith('/posters/'))
             self.assertTrue(result.endswith(f'.{ext}'))
 
     def test_is_portrait_true(self):

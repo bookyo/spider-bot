@@ -61,6 +61,11 @@ class AdminSettingsUpdate(BaseModel):
     auto_source_discovery_enabled: bool | None = None
     source_discovery_interval_minutes: int | None = Field(default=None, ge=5, le=1440)
     crawler_proxy_url: str | None = None
+    douban_backfill_enabled: bool | None = None
+    douban_backfill_interval_minutes: int | None = Field(default=None, ge=5, le=1440)
+    douban_backfill_limit: int | None = Field(default=None, ge=1, le=1000)
+    douban_search_url: str | None = None
+    douban_backfill_timeout_seconds: int | None = Field(default=None, ge=5, le=120)
 
 
 @router.get('/settings')
@@ -209,6 +214,14 @@ async def admin_run_source_discovery():
     return result
 
 
+@router.post('/tasks/douban-backfill/run')
+async def admin_run_douban_backfill():
+    from api.scheduler import start_douban_backfill_job
+
+    result = await start_douban_backfill_job(force=False)
+    return result
+
+
 @router.get('/overview')
 async def admin_overview():
     db = get_db()
@@ -227,6 +240,11 @@ async def admin_overview():
                 'auto_source_discovery_enabled',
                 'source_discovery_interval_minutes',
                 'crawler_proxy_url',
+                'douban_backfill_enabled',
+                'douban_backfill_interval_minutes',
+                'douban_backfill_limit',
+                'douban_search_url',
+                'douban_backfill_timeout_seconds',
                 'last_incremental_started_at',
                 'last_incremental_finished_at',
                 'last_incremental_status',
@@ -235,6 +253,10 @@ async def admin_overview():
                 'last_source_discovery_finished_at',
                 'last_source_discovery_status',
                 'last_source_discovery_output',
+                'last_douban_backfill_started_at',
+                'last_douban_backfill_finished_at',
+                'last_douban_backfill_status',
+                'last_douban_backfill_output',
             ]
         },
         'source_count': source_count,
