@@ -174,7 +174,19 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
                 ],
                 'title': {'$type': 'string', '$ne': ''},
             },
-            {'title': 1, 'year': 1, 'poster_url': 1, 'poster_local': 1, 'director': 1, 'synopsis': 1, 'voice_actors': 1, 'genres': 1},
+            {
+                'title': 1,
+                'year': 1,
+                'poster_url': 1,
+                'poster_local': 1,
+                'director': 1,
+                'synopsis': 1,
+                'voice_actors': 1,
+                'genres': 1,
+                'douban_rating': 1,
+                'imdb_rating': 1,
+                'source_urls': 1,
+            },
         ).sort([('updated_at', -1), ('discovered_at', -1)]).limit(limit)
 
         outputs: list[str] = []
@@ -209,7 +221,7 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
                     )
 
                 update_data = {}
-                for field in ('title', 'original_title', 'year', 'director', 'synopsis', 'voice_actors', 'genres'):
+                for field in ('title', 'original_title', 'year', 'director', 'synopsis', 'voice_actors', 'genres', 'douban_rating', 'imdb_rating'):
                     new_value = metadata.get(field)
                     old_value = doc.get(field)
                     if new_value and not old_value:

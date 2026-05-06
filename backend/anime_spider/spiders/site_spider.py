@@ -184,6 +184,8 @@ class SiteSpider(scrapy.Spider):
         item['voice_actors'] = metadata.get('voice_actors', [])
         item['synopsis'] = metadata.get('synopsis')
         item['poster_url'] = metadata.get('poster_url')
+        item['douban_rating'] = metadata.get('douban_rating')
+        item['imdb_rating'] = metadata.get('imdb_rating')
         item['source_url'] = response.url
         item['source_domain'] = urlparse(response.url).netloc
         item['genres'] = metadata.get('genres', [])

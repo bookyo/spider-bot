@@ -222,6 +222,7 @@ class AnimeDetector:
             'voice_actors': self._extract_voice_actors(response),
             'synopsis': self._extract_synopsis(response),
             'poster_url': self._extract_poster(response),
+            'douban_rating': self._extract_douban_rating(response),
             'genres': self._extract_genres(response),
         }
 
@@ -612,6 +613,48 @@ class AnimeDetector:
         if not url:
             return None
         return str(url).replace('s_ratio_poster', 'm')
+
+    def _extract_douban_rating(self, response):
+        if 'douban.com' not in response.url:
+            return None
+
+        json_ld = response.css('script[type="application/ld+json"]::text').getall()
+        for script in json_ld:
+            try:
+                data = json.loads(script)
+                payloads = data if isinstance(data, list) else [data]
+                for payload in payloads:
+                    if not isinstance(payload, dict):
+                        continue
+                    rating = payload.get('aggregateRating')
+                    if isinstance(rating, dict):
+                        value = self._parse_rating_value(rating.get('ratingValue'))
+                        if value is not None:
+                            return value
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+        for selector in [
+            'strong.rating_num::text',
+            'strong[property="v:average"]::text',
+            '[property="v:average"]::text',
+        ]:
+            value = self._parse_rating_value(response.css(selector).get())
+            if value is not None:
+                return value
+
+        return None
+
+    def _parse_rating_value(self, value):
+        if value is None:
+            return None
+        try:
+            rating = float(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+        if 0 <= rating <= 10:
+            return rating
+        return None
 
     def _extract_genres(self, response):
         """提取类型标签"""

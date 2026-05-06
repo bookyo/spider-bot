@@ -31,6 +31,8 @@ ENRICHABLE_FIELDS = [
     'synopsis',
     'voice_actors',
     'genres',
+    'douban_rating',
+    'imdb_rating',
 ]
 
 
@@ -541,6 +543,8 @@ class AnimePipeline:
             'synopsis': item.get('synopsis'),
             'poster_url': poster_url,
             'poster_local': poster_local,
+            'douban_rating': item.get('douban_rating'),
+            'imdb_rating': item.get('imdb_rating'),
             'source_urls': [item.get('source_url')] if item.get('source_url') else [],
             'source_domain': item.get('source_domain'),
             'genres': item.get('genres', []),

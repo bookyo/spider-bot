@@ -162,6 +162,20 @@ class TestAnimeDetector(unittest.TestCase):
             'https://img3.doubanio.com/view/photo/m/public/p2930445903.jpg',
         )
 
+    def test_extract_douban_rating_from_json_ld(self):
+        """豆瓣 subject 页应从 JSON-LD aggregateRating 提取评分。"""
+        response = self._mock_response(
+            url='https://movie.douban.com/subject/30215848/',
+            text='',
+            css_map={
+                'script[type="application/ld+json"]::text': (
+                    '{"@type":"TVSeries","aggregateRating":{"@type":"AggregateRating","ratingValue":"6.7","ratingCount":"12345"}}'
+                ),
+            },
+        )
+        metadata = self.detector.extract_metadata(response)
+        self.assertEqual(metadata['douban_rating'], 6.7)
+
     def test_extract_genres(self):
         """提取类型标签"""
         response = self._mock_response(

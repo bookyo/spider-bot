@@ -5,8 +5,20 @@ import { formatCompactNumber } from '@/lib/format';
 import { getAnimeFilters, getAnimeList, getStats } from '@/lib/server-api';
 
 export const metadata: Metadata = {
-  title: '视频机器人bot 自动收集视频',
-  description: '视频机器人bot 自动收集视频',
+  title: '首页',
+  description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: '视频机器人bot 自动收集视频',
+    description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+    url: '/',
+  },
+  twitter: {
+    title: '视频机器人bot 自动收集视频',
+    description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+  },
 };
 
 type SearchParamValue = string | string[] | undefined;

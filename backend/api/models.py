@@ -36,6 +36,8 @@ class AnimeListItem(BaseModel):
     director: Optional[str] = None
     poster_url: Optional[str] = None
     poster_local: Optional[str] = None
+    douban_rating: Optional[float] = None
+    imdb_rating: Optional[float] = None
     genres: list[str] = []
     source_domain: Optional[str] = None
     site_type: Optional[str] = None
@@ -63,6 +65,8 @@ class AnimeDetail(BaseModel):
     synopsis: Optional[str] = None
     poster_url: Optional[str] = None
     poster_local: Optional[str] = None
+    douban_rating: Optional[float] = None
+    imdb_rating: Optional[float] = None
     source_urls: list[str] = []
     source_domain: Optional[str] = None
     extractor_name: Optional[str] = None

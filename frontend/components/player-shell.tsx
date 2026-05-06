@@ -242,6 +242,18 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
                   <dt className="text-ash">导演</dt>
                   <dd className="text-right">{anime.director || '未知'}</dd>
                 </div>
+                {anime.douban_rating != null ? (
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-ash">豆瓣评分</dt>
+                    <dd>{anime.douban_rating}</dd>
+                  </div>
+                ) : null}
+                {anime.imdb_rating != null ? (
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-ash">IMDB评分</dt>
+                    <dd>{anime.imdb_rating}</dd>
+                  </div>
+                ) : null}
                 <div className="flex items-start justify-between gap-4">
                   <dt className="text-ash">线路数</dt>
                   <dd>{preparedSources.length}</dd>

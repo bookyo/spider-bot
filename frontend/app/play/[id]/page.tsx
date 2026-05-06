@@ -14,9 +14,28 @@ export async function generateMetadata({
   try {
     const anime = await getAnimeDetail(id);
     const title = anime.title || '视频播放';
+    const description = `${title} - 免费在线观看online - 视频机器人`;
+    const poster = anime.poster_local || anime.poster_url || '';
+    const images = poster ? [{ url: poster }] : undefined;
     return {
       title: `${title} - 免费在线观看online - 视频机器人`,
-      description: `${title} - 免费在线观看online - 视频机器人`,
+      description,
+      alternates: {
+        canonical: `/play/${id}`,
+      },
+      openGraph: {
+        type: 'video.other',
+        title: `${title} - 免费在线观看online - 视频机器人`,
+        description,
+        url: `/play/${id}`,
+        images,
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: `${title} - 免费在线观看online - 视频机器人`,
+        description,
+        images: poster ? [poster] : undefined,
+      },
     };
   } catch {
     return {

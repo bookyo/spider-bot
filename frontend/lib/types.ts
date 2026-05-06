@@ -25,6 +25,8 @@ export interface AnimeListItem {
   director?: string | null;
   poster_url?: string | null;
   poster_local?: string | null;
+  douban_rating?: number | null;
+  imdb_rating?: number | null;
   genres: string[];
   source_domain?: string | null;
   site_type?: string | null;
@@ -47,6 +49,8 @@ export interface AnimeDetail extends AnimeListItem {
   extractor_confidence?: number | null;
   play_sources: PlaySource[];
   updated_at?: string | null;
+  douban_rating?: number | null;
+  imdb_rating?: number | null;
 }
 
 export interface PaginationMeta {

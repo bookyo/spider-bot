@@ -12,6 +12,8 @@ class AnimeItem(scrapy.Item):
     voice_actors = scrapy.Field()    # 声优列表
     synopsis = scrapy.Field()        # 简介
     poster_url = scrapy.Field()      # 海报图URL
+    douban_rating = scrapy.Field()   # 豆瓣评分
+    imdb_rating = scrapy.Field()     # IMDb 评分
     source_url = scrapy.Field()      # 来源页面URL
     source_domain = scrapy.Field()   # 来源域名
     genres = scrapy.Field()          # 类型标签
