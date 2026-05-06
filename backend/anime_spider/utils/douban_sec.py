@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import re
+from html import unescape
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -42,6 +43,11 @@ def is_douban_sec_url(url):
     return urlparse(str(url or '')).netloc.lower() == 'sec.douban.com'
 
 
+def is_douban_login_block_response(response):
+    text = getattr(response, 'text', '') or ''
+    return response.status_code in {401, 403} and ('01004' in text or 'Please login' in text)
+
+
 def resolve_douban_response(url, timeout=20, proxy_url=None):
     """请求豆瓣页面，遇到 sec challenge 时自动计算 sol 并重试目标页。"""
     session = requests.Session()
@@ -58,6 +64,9 @@ def resolve_douban_response(url, timeout=20, proxy_url=None):
 
     logger.info('[Douban] 命中 sec challenge: %s', response.url)
     passed = _pass_sec_challenge(session, response, timeout=timeout, proxy_url=proxy_url)
+    if not passed and proxy_url and is_douban_login_block_response(response):
+        logger.warning('[Douban] 代理访问 sec 被登录拦截，降级直连重试: %s', response.url)
+        return resolve_douban_response(url, timeout=timeout, proxy_url=None)
     if not passed:
         return response
 
@@ -90,7 +99,11 @@ def _pass_sec_challenge(session, response, timeout=20, proxy_url=None):
     action = _extract_form_action(text) or '/c'
 
     if not tok or not cha or not red:
-        logger.warning('[Douban] sec challenge 缺少表单字段: %s', response.url)
+        snippet = _compact_text(text)[:240]
+        if is_douban_login_block_response(response):
+            logger.warning('[Douban] sec 返回登录拦截页，缺少 challenge 表单: %s body=%s', response.url, snippet)
+        else:
+            logger.warning('[Douban] sec challenge 缺少表单字段: %s body=%s', response.url, snippet)
         return None
 
     sol = _solve_challenge(cha)
@@ -139,14 +152,32 @@ def _solve_challenge(cha, difficulty=4):
 
 
 def _extract_hidden_value(html, name):
-    match = re.search(
-        rf'<input[^>]+name=["\']{re.escape(name)}["\'][^>]+value=["\']([^"\']*)["\']',
-        html,
-        flags=re.IGNORECASE,
-    )
-    return match.group(1) if match else None
+    for input_html in re.findall(r'<input\b[^>]*>', html or '', flags=re.IGNORECASE):
+        attrs = _extract_tag_attrs(input_html)
+        if attrs.get('name') == name or attrs.get('id') == name:
+            return attrs.get('value')
+    return None
 
 
 def _extract_form_action(html):
-    match = re.search(r'<form[^>]+action=["\']([^"\']+)["\']', html, flags=re.IGNORECASE)
-    return match.group(1) if match else None
+    match = re.search(r'<form\b[^>]*>', html or '', flags=re.IGNORECASE)
+    if not match:
+        return None
+    return _extract_tag_attrs(match.group(0)).get('action')
+
+
+def _extract_tag_attrs(tag_html):
+    attrs = {}
+    for match in re.finditer(
+        r'([:\w-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`]+))',
+        tag_html or '',
+        flags=re.IGNORECASE,
+    ):
+        key = match.group(1).lower()
+        value = next((group for group in match.groups()[1:] if group is not None), '')
+        attrs[key] = unescape(value)
+    return attrs
+
+
+def _compact_text(text):
+    return re.sub(r'\s+', ' ', str(text or '')).strip()

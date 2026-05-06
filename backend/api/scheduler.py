@@ -11,7 +11,11 @@ from urllib.parse import urlparse
 from bson import ObjectId
 from api.database import get_db
 from api.task_runner import run_backend_command, run_backend_command_stream, spawn_backend_command
-from anime_spider.utils.douban_enrichment import fetch_douban_subject_metadata, search_douban_subject_url
+from anime_spider.utils.douban_enrichment import (
+    fetch_douban_subject_metadata,
+    fetch_douban_subject_metadata_via_api,
+    search_douban_subject_url,
+)
 from anime_spider.utils.poster import download_poster
 
 logger = logging.getLogger(__name__)
@@ -93,6 +97,16 @@ async def _update_backfill_status(payload: dict[str, Any]) -> None:
     await db['app_settings'].update_one({'_id': 'admin'}, {'$set': payload})
 
 
+async def _update_douban_backfill_output(outputs: list[str], current: str | None = None) -> None:
+    lines = [*outputs]
+    if current:
+        lines.append(current)
+    await _update_backfill_status({
+        'last_douban_backfill_status': 'running',
+        'last_douban_backfill_output': '\n'.join(lines)[-4000:] if lines else 'douban backfill running',
+    })
+
+
 def build_crawler_env(settings: dict | None = None) -> dict[str, str]:
     settings = settings or {}
     env = {}
@@ -105,6 +119,11 @@ def build_crawler_env(settings: dict | None = None) -> dict[str, str]:
 def build_douban_proxy_url(settings: dict | None = None) -> str:
     settings = settings or {}
     return str(settings.get('crawler_proxy_url') or os.environ.get('CRAWLER_PROXY_URL') or '').strip()
+
+
+def has_meaningful_douban_metadata(metadata: dict | None) -> bool:
+    metadata = metadata or {}
+    return any(metadata.get(field) for field in ('title', 'year', 'poster_url', 'synopsis', 'douban_rating'))
 
 
 async def run_incremental_job(force: bool = False) -> dict:
@@ -200,22 +219,60 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
             if not title:
                 continue
 
-            search_result = search_douban_subject_url(title, year, search_url=search_url, proxy_url=proxy_url)
+            await _update_douban_backfill_output(outputs, f"[search] {title}")
+            search_result = await asyncio.to_thread(
+                search_douban_subject_url,
+                title,
+                year,
+                search_url=search_url,
+                timeout=timeout,
+                proxy_url=proxy_url,
+            )
             if not search_result:
                 outputs.append(f"[skip] {title} -> no douban result")
+                await _update_douban_backfill_output(outputs)
                 continue
 
             matched += 1
             subject_url = search_result['url']
             outputs.append(f"[match] {title} -> {subject_url}")
+            await _update_douban_backfill_output(outputs, f"[fetch] {title} -> douban subject")
 
             try:
-                detail = fetch_douban_subject_metadata(subject_url, timeout=timeout, proxy_url=proxy_url)
+                detail = await asyncio.to_thread(
+                    fetch_douban_subject_metadata,
+                    subject_url,
+                    timeout=timeout,
+                    proxy_url=proxy_url,
+                )
                 metadata = detail.get('metadata') or {}
+                if detail.get('blocked') or not has_meaningful_douban_metadata(metadata):
+                    raise RuntimeError(
+                        f"douban subject page unavailable status={detail.get('status_code')} url={detail.get('url')}"
+                    )
+            except Exception as subject_exc:
+                await _update_douban_backfill_output(outputs, f"[api] {title} -> frodo fallback after subject failed")
+                try:
+                    detail = await asyncio.to_thread(
+                        fetch_douban_subject_metadata_via_api,
+                        subject_url,
+                        timeout=timeout,
+                    )
+                    metadata = detail.get('metadata') or {}
+                    outputs.append(f"[api] {title} -> frodo ok after subject failed: {subject_exc}")
+                except Exception as api_exc:
+                    failed += 1
+                    outputs.append(f"[error] {title} -> subject failed: {subject_exc}; frodo failed: {api_exc}")
+                    await _update_douban_backfill_output(outputs)
+                    continue
+
+            try:
                 poster_url = metadata.get('poster_url') or doc.get('poster_url')
                 poster_local = doc.get('poster_local')
                 if poster_url and not poster_local:
-                    poster_local = download_poster(
+                    await _update_douban_backfill_output(outputs, f"[poster] {title} -> download without proxy")
+                    poster_local = await asyncio.to_thread(
+                        download_poster,
                         poster_url,
                         str(doc.get('_id') or '').replace('ObjectId(', '').replace(')', '') or title,
                     )
@@ -242,6 +299,7 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
             except Exception as exc:
                 failed += 1
                 outputs.append(f"[error] {title} -> {exc}")
+            await _update_douban_backfill_output(outputs)
 
         finished_at = datetime.utcnow()
         status = 'success' if failed == 0 else ('partial' if updated else 'failed')
