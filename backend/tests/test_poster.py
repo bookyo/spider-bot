@@ -1,11 +1,15 @@
 """海报下载器测试"""
 
 import os
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from io import BytesIO
+from pathlib import Path
 from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from anime_spider.utils.poster import download_poster, is_portrait
 
@@ -53,6 +57,26 @@ class TestPosterDownloader(unittest.TestCase):
 
         result = download_poster('https://example.com/poster.jpg', 'test_key', self.tmp_dir)
         self.assertIsNone(result)
+
+    @patch('anime_spider.utils.poster.requests.get')
+    def test_allow_horizontal_poster_when_portrait_not_required(self, mock_get):
+        """关闭竖屏要求后，横屏图也应允许下载"""
+        img_data = self._make_image_bytes(600, 400)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = img_data
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {'content-type': 'image/jpeg'}
+        mock_get.return_value = mock_resp
+
+        result = download_poster(
+            'https://example.com/poster.jpg',
+            'test_key',
+            self.tmp_dir,
+            require_portrait=False,
+        )
+        self.assertIsNotNone(result)
+        self.assertTrue(result.startswith('/posters/'))
 
     @patch('anime_spider.utils.poster.requests.get')
     def test_reject_square_poster(self, mock_get):

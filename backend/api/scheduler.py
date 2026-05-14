@@ -35,6 +35,7 @@ DEFAULT_SETTINGS = {
     'douban_search_url': 'https://s.stdlang.com/search',
     'douban_backfill_timeout_seconds': 20,
 }
+DEFAULT_NO_POSTER_LOCAL = 'posters/no-poster.png'
 
 _scheduler_task: asyncio.Task | None = None
 _source_discovery_task: asyncio.Task | None = None
@@ -229,7 +230,15 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
                 proxy_url=proxy_url,
             )
             if not search_result:
-                outputs.append(f"[skip] {title} -> no douban result")
+                update_data = {}
+                if not doc.get('poster_local'):
+                    update_data['poster_local'] = DEFAULT_NO_POSTER_LOCAL
+                    update_data['updated_at'] = datetime.utcnow()
+                    await db['anime'].update_one({'_id': doc['_id']}, {'$set': update_data})
+                    updated += 1
+                    outputs.append(f"[fallback] {title} -> {DEFAULT_NO_POSTER_LOCAL} (no douban result)")
+                else:
+                    outputs.append(f"[skip] {title} -> no douban result")
                 await _update_douban_backfill_output(outputs)
                 continue
 
@@ -275,6 +284,7 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
                         download_poster,
                         poster_url,
                         str(doc.get('_id') or '').replace('ObjectId(', '').replace(')', '') or title,
+                        require_portrait=False,
                     )
 
                 update_data = {}

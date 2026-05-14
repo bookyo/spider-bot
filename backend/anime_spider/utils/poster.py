@@ -62,7 +62,7 @@ def _build_image_headers(poster_url):
     return dict(BROWSER_HEADERS)
 
 
-def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
+def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None, require_portrait=True):
     """下载海报图片并验证是否为竖屏
 
     Args:
@@ -70,10 +70,11 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
         dedup_key: 动画去重键（用作文件名）
         poster_dir: 存储目录，默认 posters/
         timeout: 下载超时秒数
+        require_portrait: 是否要求竖屏，默认 True
 
     Returns:
-        str: 本地文件路径（成功且为竖屏）
-        None: 下载失败或非竖屏
+        str: 本地文件路径（成功）
+        None: 下载失败，或在要求竖屏时不是竖屏
     """
     if not poster_url or not dedup_key:
         return None
@@ -113,8 +114,8 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None):
             logger.debug(f'[Poster] 图片尺寸太小 {width}x{height}: {poster_url}')
             return None
 
-        # 只保留竖屏海报 (height > width)
-        if height <= width:
+        # 默认只保留竖屏海报；豆瓣回填可放宽此要求。
+        if require_portrait and height <= width:
             logger.debug(f'[Poster] 非竖屏海报 {width}x{height}，跳过: {poster_url}')
             return None
 
