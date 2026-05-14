@@ -85,6 +85,53 @@ class TestDoubanBackfill(unittest.IsolatedAsyncioTestCase):
         _, update = fake_db.anime.updates[0]
         self.assertEqual(update['$set']['poster_local'], 'posters/no-poster.png')
 
+    async def test_does_not_append_douban_subject_url_to_source_urls(self):
+        doc = {
+            '_id': 'anime-2',
+            'title': '爱没有距离',
+            'year': 2025,
+            'poster_local': '/posters/existing.jpg',
+            'poster_url': None,
+            'source_urls': ['https://example.com/anime/456'],
+            'director': None,
+            'synopsis': None,
+            'voice_actors': [],
+            'genres': [],
+            'douban_rating': None,
+            'imdb_rating': None,
+        }
+        fake_db = FakeDB([doc])
+        subject_url = 'https://movie.douban.com/subject/35027714/'
+        metadata = {
+            'director': '测试导演',
+            'synopsis': '测试简介',
+        }
+
+        with (
+            patch.object(scheduler, 'get_db', return_value=fake_db),
+            patch.object(scheduler, 'get_admin_settings', AsyncMock(return_value={
+                'douban_backfill_limit': 50,
+                'douban_search_url': 'https://s.stdlang.com/search',
+                'douban_backfill_timeout_seconds': 20,
+                'crawler_proxy_url': None,
+            })),
+            patch.object(scheduler, '_update_backfill_status', AsyncMock()),
+            patch.object(scheduler, '_update_douban_backfill_output', AsyncMock()),
+            patch.object(scheduler, 'search_douban_subject_url', return_value={'url': subject_url}),
+            patch.object(scheduler, 'fetch_douban_subject_metadata', return_value={
+                'metadata': metadata,
+                'blocked': False,
+                'status_code': 200,
+                'url': subject_url,
+            }),
+        ):
+            result = await scheduler.run_douban_backfill_job(force=True)
+
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(len(fake_db.anime.updates), 1)
+        _, update = fake_db.anime.updates[0]
+        self.assertNotIn('source_urls', update['$set'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,7 @@
 """动画增量巡检调度。"""
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 
 class IncrementalScheduler:
@@ -65,7 +66,7 @@ class IncrementalScheduler:
                 })
 
         for source_url in anime_doc.get('source_urls') or []:
-            if source_url and source_url not in seen:
+            if source_url and source_url not in seen and self._is_recrawlable_url(source_url):
                 seen.add(source_url)
                 targets.append({
                     'url': source_url,
@@ -76,6 +77,13 @@ class IncrementalScheduler:
                 })
 
         return targets
+
+    def _is_recrawlable_url(self, url):
+        parsed = urlparse(str(url or '').strip())
+        netloc = parsed.netloc.lower()
+        if netloc == 'movie.douban.com' and parsed.path.startswith('/subject/'):
+            return False
+        return True
 
     def _staleness_bonus(self, last_incremental_check):
         if not last_incremental_check:

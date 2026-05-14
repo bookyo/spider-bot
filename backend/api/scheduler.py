@@ -297,8 +297,6 @@ async def run_douban_backfill_job(force: bool = False) -> dict:
                     update_data['poster_url'] = poster_url
                 if poster_local and not doc.get('poster_local'):
                     update_data['poster_local'] = poster_local
-                if subject_url not in (doc.get('source_urls') or []):
-                    update_data['source_urls'] = (doc.get('source_urls') or []) + [subject_url]
                 if update_data:
                     update_data['updated_at'] = datetime.utcnow()
                     await db['anime'].update_one({'_id': doc['_id']}, {'$set': update_data})
