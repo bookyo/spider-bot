@@ -18,7 +18,9 @@
 import sys
 import os
 import argparse
+import heapq
 import logging
+import subprocess
 from datetime import datetime
 
 # 添加项目根目录到 Python 路径
@@ -26,6 +28,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
+
+
+RUN_PY = os.path.abspath(__file__)
+INCREMENTAL_CANDIDATE_PROJECTION = {
+    'title': 1,
+    'source_urls': 1,
+    'source_domain': 1,
+    'play_sources.raw_url': 1,
+    'play_sources.domain': 1,
+    'play_sources.latest_episode': 1,
+    'play_sources.episode_count': 1,
+    'incremental_found': 1,
+    'last_incremental_check': 1,
+    'quality_score': 1,
+    'latest_episode': 1,
+    'total_episode_count': 1,
+}
 
 
 def setup_logging():
@@ -52,7 +71,14 @@ def run_discover(methods=None):
     process.start()
 
 
-def run_crawl(domain=None, url=None, max_depth=3, search_discovery=False, search_pagination_max_pages=200):
+def run_crawl(
+    domain=None,
+    url=None,
+    max_depth=3,
+    search_discovery=False,
+    search_pagination_max_pages=200,
+    incremental_mode=False,
+):
     """运行站点爬虫"""
     from anime_spider.spiders.site_spider import SiteSpider
 
@@ -63,6 +89,7 @@ def run_crawl(domain=None, url=None, max_depth=3, search_discovery=False, search
         'max_depth': max_depth,
         'search_discovery': search_discovery,
         'search_pagination_max_pages': search_pagination_max_pages,
+        'incremental_mode': incremental_mode,
     }
     if domain:
         kwargs['domain'] = domain
@@ -73,46 +100,98 @@ def run_crawl(domain=None, url=None, max_depth=3, search_discovery=False, search
     process.start()
 
 
+def select_incremental_candidates(docs, scheduler, limit=20, min_hours=6):
+    """流式选择增量候选，避免把所有文档和排序结果都堆进内存。"""
+    max_candidates = max(int(limit or 0), 0)
+    if max_candidates <= 0:
+        return []
+
+    heap = []
+    counter = 0
+    for doc in docs:
+        if not scheduler.should_check(doc, min_hours=min_hours):
+            continue
+        score = scheduler.score(doc)
+        if len(heap) < max_candidates:
+            heapq.heappush(heap, (score, counter, doc))
+            counter += 1
+            continue
+        if score > heap[0][0]:
+            heapq.heapreplace(heap, (score, counter, doc))
+            counter += 1
+
+    ordered = sorted(heap, key=lambda item: item[0], reverse=True)
+    return [doc for _, __, doc in ordered]
+
+
+def _run_incremental_target(url):
+    return subprocess.run(
+        [
+            sys.executable,
+            RUN_PY,
+            'crawl',
+            '-u',
+            url,
+            '--max-depth',
+            '1',
+            '--incremental-mode',
+        ],
+        check=False,
+        cwd=os.path.dirname(RUN_PY),
+    )
+
+
 def run_incremental(limit=20, min_hours=6):
     """运行按动画候选排序的增量巡检。"""
-    from anime_spider.spiders.site_spider import SiteSpider
     from anime_spider.utils.db import MongoDB
     from anime_spider.utils.incremental_scheduler import IncrementalScheduler
-
-    settings = get_project_settings()
-    process = CrawlerProcess(settings)
 
     try:
         anime_col = MongoDB.get_anime_collection()
         scheduler = IncrementalScheduler()
-        candidates = []
-
-        for doc in anime_col.find({'source_urls.0': {'$exists': True}}):
-            if scheduler.should_check(doc, min_hours=min_hours):
-                candidates.append(doc)
-
-        candidates.sort(key=lambda doc: scheduler.score(doc), reverse=True)
-        selected = candidates[:limit]
+        selected = select_incremental_candidates(
+            anime_col.find(
+                {'source_urls.0': {'$exists': True}},
+                INCREMENTAL_CANDIDATE_PROJECTION,
+            ),
+            scheduler,
+            limit=limit,
+            min_hours=min_hours,
+        )
 
         if not selected:
             print('没有需要增量巡检的动画')
             return
 
-        print(f'准备增量巡检 {len(selected)} 条动画')
+        runnable_targets = []
         for doc in selected:
             targets = scheduler.build_targets(doc)
             if not targets:
                 continue
             primary = targets[0]
+            runnable_targets.append((doc, primary))
+
+        if not runnable_targets:
+            print('候选动画均无可巡检目标')
+            return
+
+        print(f'准备增量巡检 {len(runnable_targets)} 条动画')
+        failures = 0
+        for index, (doc, primary) in enumerate(runnable_targets, start=1):
             print(
-                f"[增量] {doc.get('title') or doc.get('_id')} -> "
+                f"[增量 {index}/{len(runnable_targets)}] {doc.get('title') or doc.get('_id')} -> "
                 f"{primary['kind']} {primary['url']}"
             )
-            process.crawl(SiteSpider, url=primary['url'], max_depth=1, incremental_mode=True)
+            result = _run_incremental_target(primary['url'])
+            print(f"[增量结果] {primary['url']} -> returncode={result.returncode}")
+            if result.returncode != 0:
+                failures += 1
 
-        process.start()
+        if failures:
+            raise RuntimeError(f'增量巡检完成，但有 {failures} 个目标执行失败')
     except Exception as e:
         print(f'增量巡检失败: {e}')
+        raise
     finally:
         MongoDB.close()
 
@@ -210,6 +289,11 @@ def main():
         default=200,
         help='搜索页最多追多少个分页，0 表示不限制',
     )
+    crawl_parser.add_argument(
+        '--incremental-mode',
+        action='store_true',
+        help='增量巡检模式：只抓目标详情，不继续全站扩散',
+    )
 
     incremental_parser = subparsers.add_parser('incremental', help='按动画候选执行增量巡检')
     incremental_parser.add_argument(
@@ -245,7 +329,14 @@ def main():
     if args.command == 'discover':
         run_discover(args.methods)
     elif args.command == 'crawl':
-        run_crawl(args.domain, args.url, args.max_depth, args.search_discovery, args.search_pagination_max_pages)
+        run_crawl(
+            args.domain,
+            args.url,
+            args.max_depth,
+            args.search_discovery,
+            args.search_pagination_max_pages,
+            args.incremental_mode,
+        )
     elif args.command == 'incremental':
         run_incremental(args.limit, args.min_hours)
     elif args.command == 'full':
