@@ -96,6 +96,9 @@ app.include_router(domains.router)
 app.include_router(stats.router)
 app.include_router(admin.router)
 
+from api.routes import collect
+app.include_router(collect.router)
+
 poster_dir = Path(__file__).resolve().parents[1] / 'posters'
 if poster_dir.exists():
     app.mount('/posters', StaticFiles(directory=str(poster_dir)), name='posters')

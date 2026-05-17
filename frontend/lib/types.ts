@@ -146,3 +146,79 @@ export interface AdminOverview {
   source_count: number;
   enabled_source_count: number;
 }
+
+// --- 采集源管理 ---
+
+export interface CollectSource {
+  _id: string;
+  name: string;
+  url: string;
+  type: 'json' | 'xml';
+  mid: number;
+  appid: string;
+  appkey: string;
+  bind: boolean;
+  status: boolean;
+  filter: {
+    area: string;
+    year: string;
+    class: string;
+    type: any[];
+  };
+  last_collect?: string | null;
+  collect_num: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CollectTask {
+  _id: string;
+  collect_source: string;
+  source_name: string;
+  range: string;
+  trigger: 'manual' | 'scheduler';
+  active_key: string | null;
+  status: 'pending' | 'running' | 'success' | 'failed';
+  queue_position: number;
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  pages: number;
+  current_name: string;
+  message: string;
+  heartbeat_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  logs: Array<{ at: string; text: string }>;
+  result: any | null;
+  reused_existing?: boolean;
+  enqueue_message?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CollectTimingTask {
+  id: number;
+  status: number;
+  name: string;
+  des: string;
+  file: string;
+  param: { type: string };
+  weeks: string;
+  hours: string;
+  monthdays?: string;
+  runtime: number | null;
+}
+
+export interface CollectRangeOption {
+  key: string;
+  label: string;
+}
+
+export interface CollectTypeBinding {
+  source_type_id: string;
+  source_type_name: string;
+  local_type: string;
+  local_type_resolved?: any;
+}

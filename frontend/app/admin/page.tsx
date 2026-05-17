@@ -13,8 +13,20 @@ import {
   runAdminSource,
   updateAdminSettings,
   updateAdminSource,
+  getCollectSources,
+  createCollectSource,
+  updateCollectSource,
+  deleteCollectSource,
+  testCollectSource,
+  runCollectSource,
+  getCollectTasks,
+  getCollectTimingTasks,
+  updateCollectTimingTask,
+  runCollectTimingTask,
+  getCollectBindings,
+  saveCollectBindings,
 } from '@/lib/api';
-import { AdminOverview, AdminSettings, CrawlSource } from '@/lib/types';
+import { AdminOverview, AdminSettings, CollectSource, CollectTask, CollectTimingTask, CollectTypeBinding, CrawlSource } from '@/lib/types';
 
 const API_KEY_STORAGE = 'acg:admin:api-key';
 
@@ -710,10 +722,527 @@ export default function AdminPage() {
                 {!sources.length ? <div className="text-sm text-ash">暂无自定义爬虫源。</div> : null}
               </div>
             </section>
+
+            {/* -------- 采集源管理 (JSON/XML 资源站) -------- */}
+            <CollectSourcesSection apiKey={apiKey} loading={loading} setLoading={setLoading} setError={setError} setMessage={setMessage} />
           </div>
         ) : null}
       </div>
     </main>
+  );
+}
+
+// -------- 采集源管理组件 --------
+
+const COLLECT_RANGE_OPTIONS = [
+  { key: 'today', label: '今日更新' },
+  { key: '2day', label: '2日内更新' },
+  { key: 'week', label: '本周更新' },
+  { key: 'month', label: '30日内更新' },
+  { key: '3month', label: '90日内更新' },
+  { key: 'all', label: '全量采集' },
+];
+
+function CollectSourcesSection({
+  apiKey,
+  loading,
+  setLoading,
+  setError,
+  setMessage,
+}: {
+  apiKey: string;
+  loading: boolean;
+  setLoading: (v: boolean) => void;
+  setError: (v: string) => void;
+  setMessage: (v: string) => void;
+}) {
+  const [collectSources, setCollectSources] = useState<CollectSource[]>([]);
+  const [collectTasks, setCollectTasks] = useState<CollectTask[]>([]);
+  const [timingTasks, setTimingTasks] = useState<CollectTimingTask[]>([]);
+  const [showCollectTab, setShowCollectTab] = useState<'sources' | 'timing'>('sources');
+  const [bindingSourceId, setBindingSourceId] = useState<string | null>(null);
+  const [bindingRows, setBindingRows] = useState<Array<CollectTypeBinding & { enabled: boolean }>>([]);
+  const [bindingLocalTypes, setBindingLocalTypes] = useState<Array<{ name: string; count: number }>>([]);
+  const [bindingLoading, setBindingLoading] = useState(false);
+  const [bindingRemoteError, setBindingRemoteError] = useState('');
+  const [collectForm, setCollectForm] = useState({
+    name: '',
+    url: '',
+    type: 'json' as 'json' | 'xml',
+    appid: '',
+    appkey: '',
+    bind: false,
+  });
+  const [testResults, setTestResults] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!apiKey) return;
+    void loadCollectData();
+  }, [apiKey]);
+
+  async function loadCollectData() {
+    try {
+      const [sourcesRes, tasksRes, timingRes] = await Promise.all([
+        getCollectSources(apiKey),
+        getCollectTasks(apiKey),
+        getCollectTimingTasks(apiKey),
+      ]);
+      setCollectSources(sourcesRes.data);
+      setCollectTasks(tasksRes.data);
+      setTimingTasks(timingRes.data);
+    } catch {
+      // silent
+    }
+  }
+
+  async function handleCreateCollectSource() {
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      await createCollectSource(apiKey, collectForm);
+      setCollectForm({ name: '', url: '', type: 'json', appid: '', appkey: '', bind: false });
+      setMessage('采集源已添加');
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '添加失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleToggleCollectSource(source: CollectSource) {
+    setLoading(true);
+    setError('');
+    try {
+      await updateCollectSource(apiKey, source._id, { status: !source.status });
+      setMessage(`已${source.status ? '停用' : '启用'} ${source.name}`);
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteCollectSource(source: CollectSource) {
+    if (!window.confirm(`确认删除采集源「${source.name}」吗？`)) return;
+    setLoading(true);
+    setError('');
+    try {
+      await deleteCollectSource(apiKey, source._id);
+      setMessage(`已删除 ${source.name}`);
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleTestCollectSource(sourceId: string) {
+    setError('');
+    setTestResults((prev) => ({ ...prev, [sourceId]: '测试中...' }));
+    try {
+      const result = await testCollectSource(apiKey, sourceId);
+      setTestResults((prev) => ({
+        ...prev,
+        [sourceId]: result.ok ? `✅ ${result.message}` : `❌ ${result.message}`,
+      }));
+    } catch (err) {
+      setTestResults((prev) => ({
+        ...prev,
+        [sourceId]: `❌ ${err instanceof Error ? err.message : '测试失败'}`,
+      }));
+    }
+  }
+
+  async function handleRunCollectSource(sourceId: string, range: string) {
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await runCollectSource(apiKey, sourceId, range);
+      setMessage(result.message);
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '采集失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleToggleTimingTask(task: CollectTimingTask) {
+    setLoading(true);
+    setError('');
+    try {
+      await updateCollectTimingTask(apiKey, task.id, { status: task.status === 1 ? 0 : 1 });
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新定时任务失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRunTimingTask(task: CollectTimingTask) {
+    if (!window.confirm(`确认立即执行「${task.des}」吗？这将为所有启用的采集源创建采集任务。`)) return;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await runCollectTimingTask(apiKey, task.id);
+      setMessage(result.message);
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '执行失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOpenBindings(sourceId: string) {
+    if (bindingSourceId === sourceId) {
+      setBindingSourceId(null);
+      setBindingRows([]);
+      setBindingLocalTypes([]);
+      setBindingRemoteError('');
+      return;
+    }
+
+    setBindingSourceId(sourceId);
+    setBindingLoading(true);
+    setBindingRemoteError('');
+    setError('');
+    try {
+      const result = await getCollectBindings(apiKey, sourceId);
+      setBindingRows(
+        result.bindings.map((row) => ({
+          ...row,
+          enabled: !!row.local_type,
+          local_type: row.local_type || row.source_type_name || '',
+        })),
+      );
+      setBindingLocalTypes(result.local_types || []);
+      setBindingRemoteError(result.remote_type_error || '');
+    } catch (err) {
+      setBindingRows([]);
+      setBindingLocalTypes([]);
+      setBindingRemoteError('');
+      setError(err instanceof Error ? err.message : '加载远程分类失败');
+    } finally {
+      setBindingLoading(false);
+    }
+  }
+
+  function updateBindingRow(index: number, patch: Partial<CollectTypeBinding & { enabled: boolean }>) {
+    setBindingRows((current) => current.map((row, rowIndex) => {
+      if (rowIndex !== index) return row;
+      return { ...row, ...patch };
+    }));
+  }
+
+  async function handleSaveBindings(sourceId: string) {
+    setLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const selected = bindingRows
+        .filter((row) => row.enabled)
+        .map((row) => ({
+          sourceTypeId: row.source_type_id,
+          sourceTypeName: row.source_type_name,
+          localType: row.local_type?.trim() || row.source_type_name,
+        }));
+      await saveCollectBindings(apiKey, sourceId, selected);
+      setMessage(`已保存远程分类，共 ${selected.length} 个`);
+      await loadCollectData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存远程分类失败');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
+      <div className="mb-5">
+        <h2 className="text-2xl font-semibold text-parchment">📡 资源站采集源管理</h2>
+        <p className="mt-2 text-sm text-parchment/70">对接支持 JSON/XML 格式的资源站 API，按时间范围采集动画数据。</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setShowCollectTab('sources')}
+          className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+            showCollectTab === 'sources'
+              ? 'bg-ember text-black'
+              : 'border border-white/10 text-parchment/60 hover:text-parchment'
+          }`}
+        >
+          采集源 ({collectSources.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowCollectTab('timing')}
+          className={`rounded-full px-5 py-2 text-sm font-medium transition ${
+            showCollectTab === 'timing'
+              ? 'bg-ember text-black'
+              : 'border border-white/10 text-parchment/60 hover:text-parchment'
+          }`}
+        >
+          定时任务 ({timingTasks.filter((t) => t.status === 1).length}/{timingTasks.length})
+        </button>
+      </div>
+
+      {showCollectTab === 'sources' ? (
+        <>
+          {/* 添加采集源 */}
+          <div className="mb-6 rounded-[24px] border border-ember/20 bg-black/20 p-5">
+            <div className="mb-4 text-sm font-medium text-parchment">添加采集源</div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <TextField label="名称" value={collectForm.name} onChange={(v) => setCollectForm((p) => ({ ...p, name: v }))} />
+              <TextField label="接口地址" value={collectForm.url} onChange={(v) => setCollectForm((p) => ({ ...p, url: v }))} />
+              <label className="block">
+                <div className="mb-2 text-xs uppercase tracking-[0.24em] text-ash">类型</div>
+                <select
+                  value={collectForm.type}
+                  onChange={(e) => setCollectForm((p) => ({ ...p, type: e.target.value as 'json' | 'xml' }))}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-parchment outline-none"
+                >
+                  <option value="json">JSON</option>
+                  <option value="xml">XML</option>
+                </select>
+              </label>
+              <TextField label="App ID(可选)" value={collectForm.appid} onChange={(v) => setCollectForm((p) => ({ ...p, appid: v }))} />
+              <TextField label="App Key(可选)" value={collectForm.appkey} onChange={(v) => setCollectForm((p) => ({ ...p, appkey: v }))} />
+              <ToggleField label="启用采集" checked={true} onChange={() => {}} />
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateCollectSource}
+              disabled={loading || !collectForm.name || !collectForm.url}
+              className="mt-4 rounded-2xl bg-ember px-5 py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-40"
+            >
+              添加采集源
+            </button>
+          </div>
+
+          {/* 采集源列表 */}
+          <div className="space-y-4">
+            {collectSources.map((source) => (
+              <div key={source._id} className="rounded-[24px] border border-white/10 bg-black/20 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="truncate text-base font-medium text-parchment">{source.name}</h3>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${source.status ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'}`}>
+                        {source.status ? '启用' : '停用'}
+                      </span>
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-ash">{source.type.toUpperCase()}</span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-ash">{source.url}</p>
+                    {source.last_collect ? (
+                      <p className="mt-1 text-xs text-parchment/50">
+                        上次采集: {new Date(source.last_collect).toLocaleString('zh-CN')} · 累计: {source.collect_num} 条
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-ash">尚未采集</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleTestCollectSource(source._id)}
+                      className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-parchment/60 transition hover:border-white/20 hover:text-parchment"
+                    >
+                      测试连接
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBindings(source._id)}
+                      className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-parchment/60 transition hover:border-white/20 hover:text-parchment"
+                    >
+                      {bindingSourceId === source._id ? '收起分类' : '远程分类'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCollectSource(source)}
+                      className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-parchment/60 transition hover:border-white/20 hover:text-parchment"
+                    >
+                      {source.status ? '停用' : '启用'}
+                    </button>
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) handleRunCollectSource(source._id, e.target.value);
+                        e.target.value = '';
+                      }}
+                      className="rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-parchment/60 outline-none"
+                    >
+                      <option value="">手动采集 ▾</option>
+                      {COLLECT_RANGE_OPTIONS.map((opt) => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCollectSource(source)}
+                      className="rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1.5 text-xs text-rose-200 transition hover:bg-rose-400/20"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+                {testResults[source._id] ? (
+                  <p className="mt-3 text-xs text-parchment/60">{testResults[source._id]}</p>
+                ) : null}
+                {bindingSourceId === source._id ? (
+                  <div className="mt-4 rounded-[20px] border border-ember/15 bg-black/25 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-parchment">远程分类采集选择</div>
+                        <p className="mt-1 text-xs leading-6 text-parchment/60">
+                          只有勾选的远程分类会参与采集，右侧填写或确认入库分类名。留空时会默认使用远程分类名。
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveBindings(source._id)}
+                        disabled={loading || bindingLoading}
+                        className="rounded-full bg-ember px-4 py-2 text-xs font-semibold text-black transition hover:brightness-110 disabled:opacity-50"
+                      >
+                        保存分类选择
+                      </button>
+                    </div>
+                    {bindingRemoteError ? (
+                      <p className="mt-3 text-xs text-amber-300">远程分类获取异常：{bindingRemoteError}</p>
+                    ) : null}
+                    {bindingLoading ? (
+                      <p className="mt-3 text-xs text-ash">正在加载远程分类...</p>
+                    ) : null}
+                    {!bindingLoading && bindingRows.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {bindingRows.map((row, index) => (
+                          <div key={row.source_type_id} className="grid gap-3 rounded-2xl border border-white/8 bg-black/25 p-3 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+                            <label className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={row.enabled}
+                                onChange={(event) => updateBindingRow(index, {
+                                  enabled: event.target.checked,
+                                  local_type: event.target.checked
+                                    ? (row.local_type || row.source_type_name)
+                                    : row.local_type,
+                                })}
+                                className="h-4 w-4 rounded border-white/20 bg-transparent"
+                              />
+                              <div>
+                                <div className="text-sm text-parchment">{row.source_type_name || `分类 ${row.source_type_id}`}</div>
+                                <div className="text-xs text-ash">远程 ID: {row.source_type_id}</div>
+                              </div>
+                            </label>
+                            <label className="block">
+                              <div className="mb-2 text-[11px] uppercase tracking-[0.24em] text-ash">入库分类名</div>
+                              <input
+                                list="collect-local-type-options"
+                                value={row.local_type || ''}
+                                onChange={(event) => updateBindingRow(index, { local_type: event.target.value })}
+                                disabled={!row.enabled}
+                                placeholder={row.source_type_name || '输入分类名'}
+                                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-parchment outline-none transition focus:border-ember/60 disabled:cursor-not-allowed disabled:opacity-40"
+                              />
+                            </label>
+                          </div>
+                        ))}
+                        <datalist id="collect-local-type-options">
+                          {bindingLocalTypes.map((item) => (
+                            <option key={item.name} value={item.name}>
+                              {item.name} ({item.count})
+                            </option>
+                          ))}
+                        </datalist>
+                      </div>
+                    ) : null}
+                    {!bindingLoading && !bindingRows.length ? (
+                      <p className="mt-3 text-xs text-ash">当前没有可配置的远程分类。</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            {!collectSources.length ? <div className="text-sm text-ash">暂无采集源，请添加 JSON/XML 资源站接口地址。</div> : null}
+          </div>
+
+          {/* 最近任务列表 */}
+          {collectTasks.length > 0 ? (
+            <div className="mt-8">
+              <h3 className="mb-4 text-sm font-medium text-parchment/70">最近采集任务</h3>
+              <div className="space-y-2">
+                {collectTasks.slice(0, 10).map((task) => (
+                  <div key={task._id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-parchment">{task.source_name || task.collect_source}</span>
+                      <span className="ml-2 text-xs text-ash">· {task.range}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs ${task.status === 'success' ? 'text-emerald-300' : task.status === 'failed' ? 'text-rose-300' : task.status === 'running' ? 'text-amber-300' : 'text-ash'}`}>
+                        {task.status === 'success' ? `完成 (新${task.created} 更${task.updated})` : task.status === 'failed' ? '失败' : task.status === 'running' ? '运行中' : '等待中'}
+                      </span>
+                      <span className="text-xs text-ash">{task.message}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        /* 定时任务管理 */
+        <div className="space-y-4">
+          <p className="text-sm text-parchment/60">配置采集定时任务，系统会按设定的周几和小时自动触发采集。支持立即手动执行。</p>
+          {timingTasks.map((task) => (
+            <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-black/20 p-5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-medium text-parchment">{task.des}</h3>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${task.status === 1 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'}`}>
+                    {task.status === 1 ? '启用' : '停用'}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-ash">范围: {task.param.type}</span>
+                </div>
+                {task.status === 1 && task.weeks && task.hours ? (
+                  <p className="mt-1 text-xs text-ash">
+                    周期: {task.weeks} · 时刻: {task.hours}
+                    {task.runtime ? ` · 上次: ${new Date(task.runtime).toLocaleString('zh-CN')}` : ''}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-ash">手动触发模式（无自动调度）</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleToggleTimingTask(task)}
+                  className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-parchment/60 transition hover:border-white/20 hover:text-parchment"
+                >
+                  {task.status === 1 ? '停用' : '启用'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunTimingTask(task)}
+                  className="rounded-full bg-ember px-4 py-1.5 text-xs font-semibold text-black transition hover:brightness-110"
+                >
+                  立即执行
+                </button>
+              </div>
+            </div>
+          ))}
+          {!timingTasks.length ? <div className="text-sm text-ash">暂无定时任务配置。</div> : null}
+        </div>
+      )}
+    </section>
   );
 }
 

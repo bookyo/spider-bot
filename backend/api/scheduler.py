@@ -748,9 +748,68 @@ async def start_source_discovery_job(force: bool = False) -> dict:
     return {'started': True, 'status': 'running', 'mode': 'background', 'started_at': started_at}
 
 
+async def _check_collect_timings():
+    """检查并执行采集定时任务（基于周几/小时匹配）"""
+    from config.collect_timing import COLLECT_TIMING_TASKS
+    from services.collect_task_runner import collect_task_runner
+
+    now = datetime.utcnow()
+    day_of_week = now.weekday()  # 0=Monday in Python, but maccms uses 0=Sunday
+    # 转换: Python weekday (Mon=0) -> maccms week (Sun=0)
+    maccms_dow = (day_of_week + 1) % 7
+    hour = str(now.hour).zfill(2)
+    month_day = now.day
+
+    for task in COLLECT_TIMING_TASKS:
+        if task.get('status') != 1:
+            continue
+
+        weeks_str = str(task.get('weeks', '')).strip()
+        hours_str = str(task.get('hours', '')).strip()
+        monthdays_str = str(task.get('monthdays', '')).strip()
+
+        if not hours_str:
+            continue
+
+        weeks = [int(w.strip()) for w in weeks_str.split(',') if w.strip()] if weeks_str else []
+        hours = [h.strip() for h in hours_str.split(',') if h.strip()] if hours_str else []
+        monthdays = [int(d.strip()) for d in monthdays_str.split(',') if d.strip()] if monthdays_str else []
+
+        if weeks and maccms_dow not in weeks:
+            continue
+        if monthdays and month_day not in monthdays:
+            continue
+        if hours and hour not in hours:
+            continue
+
+        last_runtime = task.get('runtime')
+        if last_runtime:
+            last_dt = datetime.utcfromtimestamp(last_runtime / 1000)
+            if last_dt.day == now.day and last_dt.hour == now.hour:
+                continue
+
+        # 执行
+        logger.info('[Scheduler] running collect timing: %s', task.get('name'))
+        try:
+            result = await collect_task_runner.enqueue_for_all_sources(
+                range_type=task.get('param', {}).get('type', '1day'),
+                trigger='scheduler',
+            )
+            task['runtime'] = int(now.timestamp() * 1000)
+            logger.info(
+                '[Scheduler] collect timing %s: queued %d sources',
+                task.get('name'), len(result),
+            )
+        except Exception as exc:
+            logger.exception('[Scheduler] collect timing %s failed: %s', task.get('name'), exc)
+
+
 async def scheduler_loop():
     while True:
         try:
+            # 采集定时任务检查
+            await _check_collect_timings()
+
             settings = await get_admin_settings()
             if settings.get('auto_incremental_enabled'):
                 interval = max(int(settings.get('incremental_interval_minutes') or 60), 5)

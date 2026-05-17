@@ -22,6 +22,22 @@ async def connect():
     await db['crawl_sources'].create_index('domain')
     await db['app_settings'].create_index('updated_at')
 
+    # 采集源相关集合索引
+    await db['collect_sources'].create_index('url')
+    await db['collect_sources'].create_index('mid')
+    await db['collect_sources'].create_index('status')
+    await db['collect_sources'].create_index('updated_at')
+
+    await db['collect_tasks'].create_index([('collect_source', 1), ('created_at', -1)])
+    await db['collect_tasks'].create_index([('status', 1), ('created_at', -1)])
+
+    await db['collect_history'].create_index('url_hash', unique=True)
+    await db['collect_history'].create_index('created_at')
+
+    await db['collect_type_bindings'].create_index(
+        [('collect_source', 1), ('source_type_id', 1)], unique=True
+    )
+
 
 async def close():
     global client
