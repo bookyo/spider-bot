@@ -1,17 +1,20 @@
 """海报下载器 - 下载并验证海报图片"""
 
-import os
 import logging
-import hashlib
 import requests
 from io import BytesIO
 from PIL import Image
 from urllib.parse import urlparse
 
+from utils.cdn_upload import (
+    is_cdn_public_url,
+    poster_content_type,
+    upload_bytes_to_cdn,
+)
+
 logger = logging.getLogger(__name__)
 
 # 默认配置
-DEFAULT_POSTER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'posters')
 DEFAULT_TIMEOUT = 15
 MIN_WIDTH = 200
 MIN_HEIGHT = 300
@@ -68,21 +71,20 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None, requir
     Args:
         poster_url: 海报图片 URL
         dedup_key: 动画去重键（用作文件名）
-        poster_dir: 存储目录，默认 posters/
+        poster_dir: 兼容旧参数，已不再使用本地目录
         timeout: 下载超时秒数
         require_portrait: 是否要求竖屏，默认 True
 
     Returns:
-        str: 本地文件路径（成功）
+        str: CDN 公网 URL（成功）
         None: 下载失败，或在要求竖屏时不是竖屏
     """
     if not poster_url or not dedup_key:
         return None
 
-    poster_dir = poster_dir or DEFAULT_POSTER_DIR
     timeout = timeout or DEFAULT_TIMEOUT
-
-    os.makedirs(poster_dir, exist_ok=True)
+    if is_cdn_public_url(poster_url):
+        return poster_url
 
     try:
         headers = _build_image_headers(poster_url)
@@ -119,21 +121,15 @@ def download_poster(poster_url, dedup_key, poster_dir=None, timeout=None, requir
             logger.debug(f'[Poster] 非竖屏海报 {width}x{height}，跳过: {poster_url}')
             return None
 
-        # 确定文件格式
-        fmt = img.format or 'JPEG'
-        ext = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp', 'GIF': 'gif'}.get(fmt, 'jpg')
-
-        # 文件名: dedup_key + url hash（避免同一 dedup_key 不同海报覆盖）
-        url_hash = hashlib.md5(poster_url.encode()).hexdigest()[:8]
-        filename = f'{dedup_key}_{url_hash}.{ext}'
-        filepath = os.path.join(poster_dir, filename)
-
-        # 保存图片
-        with open(filepath, 'wb') as f:
-            f.write(data)
-
-        logger.info(f'[Poster] 海报已保存: {filepath} ({width}x{height})')
-        return f'/posters/{filename}'
+        content_type = poster_content_type(resp.headers.get('content-type'), poster_url)
+        public_url = upload_bytes_to_cdn(
+            str(dedup_key),
+            data,
+            content_type,
+            timeout=timeout,
+        )
+        logger.info(f'[Poster] 海报已上传 CDN: {public_url} ({width}x{height})')
+        return public_url
 
     except requests.RequestException as e:
         response = getattr(e, 'response', None)

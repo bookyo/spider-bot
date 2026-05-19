@@ -28,7 +28,8 @@ class TestPosterDownloader(unittest.TestCase):
         return buf.getvalue()
 
     @patch('anime_spider.utils.poster.requests.get')
-    def test_download_vertical_poster(self, mock_get):
+    @patch('anime_spider.utils.poster.upload_bytes_to_cdn')
+    def test_download_vertical_poster(self, mock_upload, mock_get):
         """竖屏海报应成功下载"""
         img_data = self._make_image_bytes(400, 600)
         mock_resp = MagicMock()
@@ -37,12 +38,10 @@ class TestPosterDownloader(unittest.TestCase):
         mock_resp.raise_for_status = MagicMock()
         mock_resp.headers = {'content-type': 'image/jpeg'}
         mock_get.return_value = mock_resp
+        mock_upload.return_value = 'https://cdn.example.com/api/processed/public/file/test_key.jpg'
 
         result = download_poster('https://example.com/poster.jpg', 'test_key', self.tmp_dir)
-        self.assertIsNotNone(result)
-        self.assertTrue(result.startswith('/posters/'))
-        self.assertTrue(result.endswith('.jpg'))
-        self.assertTrue(os.path.exists(os.path.join(self.tmp_dir, os.path.basename(result))))
+        self.assertEqual(result, 'https://cdn.example.com/api/processed/public/file/test_key.jpg')
 
     @patch('anime_spider.utils.poster.requests.get')
     def test_reject_horizontal_poster(self, mock_get):
@@ -59,7 +58,8 @@ class TestPosterDownloader(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch('anime_spider.utils.poster.requests.get')
-    def test_allow_horizontal_poster_when_portrait_not_required(self, mock_get):
+    @patch('anime_spider.utils.poster.upload_bytes_to_cdn')
+    def test_allow_horizontal_poster_when_portrait_not_required(self, mock_upload, mock_get):
         """关闭竖屏要求后，横屏图也应允许下载"""
         img_data = self._make_image_bytes(600, 400)
         mock_resp = MagicMock()
@@ -68,6 +68,7 @@ class TestPosterDownloader(unittest.TestCase):
         mock_resp.raise_for_status = MagicMock()
         mock_resp.headers = {'content-type': 'image/jpeg'}
         mock_get.return_value = mock_resp
+        mock_upload.return_value = 'https://cdn.example.com/api/processed/public/file/test_key.jpg'
 
         result = download_poster(
             'https://example.com/poster.jpg',
@@ -75,8 +76,7 @@ class TestPosterDownloader(unittest.TestCase):
             self.tmp_dir,
             require_portrait=False,
         )
-        self.assertIsNotNone(result)
-        self.assertTrue(result.startswith('/posters/'))
+        self.assertEqual(result, 'https://cdn.example.com/api/processed/public/file/test_key.jpg')
 
     @patch('anime_spider.utils.poster.requests.get')
     def test_reject_square_poster(self, mock_get):
@@ -124,7 +124,8 @@ class TestPosterDownloader(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch('anime_spider.utils.poster.requests.get')
-    def test_different_formats(self, mock_get):
+    @patch('anime_spider.utils.poster.upload_bytes_to_cdn')
+    def test_different_formats(self, mock_upload, mock_get):
         """支持不同图片格式"""
         for fmt, ext in [('PNG', 'png'), ('JPEG', 'jpg')]:
             img_data = self._make_image_bytes(300, 500, fmt)
@@ -132,12 +133,12 @@ class TestPosterDownloader(unittest.TestCase):
             mock_resp.status_code = 200
             mock_resp.content = img_data
             mock_resp.raise_for_status = MagicMock()
+            mock_resp.headers = {'content-type': f'image/{ext}'}
             mock_get.return_value = mock_resp
+            mock_upload.return_value = f'https://cdn.example.com/api/processed/public/file/key_{ext}.{ext}'
 
             result = download_poster(f'https://example.com/poster.{ext}', f'key_{ext}', self.tmp_dir)
-            self.assertIsNotNone(result)
-            self.assertTrue(result.startswith('/posters/'))
-            self.assertTrue(result.endswith(f'.{ext}'))
+            self.assertEqual(result, f'https://cdn.example.com/api/processed/public/file/key_{ext}.{ext}')
 
     def test_is_portrait_true(self):
         """竖屏图片检测"""

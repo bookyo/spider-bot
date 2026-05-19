@@ -275,6 +275,9 @@ export async function saveCollectBindings(
 
 export function resolvePosterUrl(posterLocal?: string | null, posterRemote?: string | null) {
   if (posterLocal) {
+    if (/^https?:\/\//i.test(posterLocal)) {
+      return posterLocal;
+    }
     const normalized = posterLocal.startsWith('/') ? posterLocal : `/${posterLocal}`;
     return `${PUBLIC_API_BASE}${normalized}`;
   }

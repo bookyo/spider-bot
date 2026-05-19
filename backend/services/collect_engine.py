@@ -15,6 +15,7 @@ import httpx
 from bson import ObjectId
 
 from api.database import get_db
+from utils.cdn_upload import is_cdn_public_url, poster_content_type, upload_poster_to_cdn
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,6 @@ DEFAULT_POSTER_PATH = '/posters/no-poster.png'
 DEFAULT_HTTP_TIMEOUT = 30.0
 MAX_CONCURRENT_DETAIL = 8
 DEFAULT_POSTER_RETRY = 3
-
-POSTER_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'posters'
-)
-
 
 def normalize_collect_range(type_value: str) -> dict[str, Any]:
     """标准化采集范围，返回 {key, hours}"""
@@ -336,7 +332,7 @@ async def download_poster_with_retry(
     dedup_key: str,
     retries: int = DEFAULT_POSTER_RETRY,
 ) -> str:
-    """下载海报图片并返回本地路径，失败返回 DEFAULT_POSTER_PATH
+    """下载海报图片并上传 CDN，失败返回 DEFAULT_POSTER_PATH
 
     Args:
         poster_url: 海报图片 URL
@@ -344,13 +340,13 @@ async def download_poster_with_retry(
         retries: 重试次数
 
     Returns:
-        str: 本地文件路径（如 /posters/xxx.jpg）或 DEFAULT_POSTER_PATH
+        str: CDN 公网 URL 或 DEFAULT_POSTER_PATH
     """
     if not poster_url or not dedup_key:
         logger.debug('[Poster] 无海报 URL 或去重键，使用默认图')
         return DEFAULT_POSTER_PATH
-
-    os.makedirs(POSTER_DIR, exist_ok=True)
+    if is_cdn_public_url(poster_url):
+        return poster_url
 
     last_error: Optional[str] = None
     for attempt in range(1, retries + 1):
@@ -377,26 +373,23 @@ async def download_poster_with_retry(
                     continue
                 return DEFAULT_POSTER_PATH
 
-            # 验证图片格式
             from io import BytesIO
             try:
                 from PIL import Image
                 img = Image.open(BytesIO(data))
-                fmt = img.format or 'JPEG'
-                ext = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp', 'GIF': 'gif'}.get(fmt, 'jpg')
             except Exception:
-                ext = 'jpg'
+                pass
 
-            url_hash = hashlib.md5(poster_url.encode()).hexdigest()[:8]
-            filename = f'{dedup_key}_{url_hash}.{ext}'
-            filepath = os.path.join(POSTER_DIR, filename)
-
-            with open(filepath, 'wb') as f:
-                f.write(data)
-
-            local_path = f'/posters/{filename}'
-            logger.info('[Poster] 下载成功: %s → %s', poster_url[:80], local_path)
-            return local_path
+            content_type = poster_content_type(resp.headers.get('content-type'), poster_url)
+            public_url = await upload_poster_to_cdn(
+                data,
+                poster_url,
+                dedup_key,
+                content_type=content_type,
+                timeout=15,
+            )
+            logger.info('[Poster] 上传成功: %s → %s', poster_url[:80], public_url)
+            return public_url
 
         except Exception as e:
             last_error = f'{type(e).__name__}: {e}' if str(e) else type(e).__name__
