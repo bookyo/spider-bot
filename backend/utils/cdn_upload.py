@@ -71,7 +71,7 @@ def build_poster_filename(dedup_key: str, source_url: str, content_type: str) ->
 def upload_bytes_to_cdn(filename: str, content: bytes, content_type: str, timeout: int = 20) -> str:
     signed_response = requests.post(
         f'{cdn_upload_base_url()}/api/upload/generate-signed-url',
-        headers=cdn_auth_headers(),
+        headers={**cdn_auth_headers(), 'X-Public-Access': 'true'},
         json={
             'filename': filename,
             'contentType': content_type,

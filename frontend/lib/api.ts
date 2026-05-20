@@ -11,6 +11,24 @@ import {
 const INTERNAL_API_BASE = process.env.API_BASE_URL || 'http://127.0.0.1:8000';
 export const PUBLIC_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || INTERNAL_API_BASE;
 
+function isAbsoluteUrl(value: string) {
+  return /^[a-z][a-z\d+\-.]*:\/\//i.test(value) || value.startsWith('//');
+}
+
+function normalizePosterValue(value?: string | null) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (isAbsoluteUrl(normalized)) {
+    return normalized;
+  }
+  if (/^\/https?:\/\//i.test(normalized)) {
+    return normalized.slice(1);
+  }
+  return normalized;
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
   const response = await fetch(`${INTERNAL_API_BASE}${path}`, {
     next: { revalidate: 30 },
@@ -274,12 +292,13 @@ export async function saveCollectBindings(
 }
 
 export function resolvePosterUrl(posterLocal?: string | null, posterRemote?: string | null) {
-  if (posterLocal) {
-    if (/^https?:\/\//i.test(posterLocal)) {
-      return posterLocal;
+  const normalizedLocal = normalizePosterValue(posterLocal);
+  if (normalizedLocal) {
+    if (isAbsoluteUrl(normalizedLocal)) {
+      return normalizedLocal;
     }
-    const normalized = posterLocal.startsWith('/') ? posterLocal : `/${posterLocal}`;
+    const normalized = normalizedLocal.startsWith('/') ? normalizedLocal : `/${normalizedLocal}`;
     return `${PUBLIC_API_BASE}${normalized}`;
   }
-  return posterRemote || '';
+  return normalizePosterValue(posterRemote);
 }

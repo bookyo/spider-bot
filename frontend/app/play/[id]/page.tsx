@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PlayerShell } from '@/components/player-shell';
+import { resolvePosterUrl } from '@/lib/api';
 import { getAnimeDetail } from '@/lib/server-api';
 
 export async function generateMetadata({
@@ -15,7 +16,7 @@ export async function generateMetadata({
     const anime = await getAnimeDetail(id);
     const title = anime.title || '视频播放';
     const description = `${title} - 免费在线观看online - 视频机器人`;
-    const poster = anime.poster_local || anime.poster_url || '';
+    const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
     const images = poster ? [{ url: poster }] : undefined;
     return {
       title: `${title} - 免费在线观看online - 视频机器人`,
