@@ -1,10 +1,16 @@
 """API 接口测试 - 需要 MongoDB 运行"""
 
+import os
+import sys
 import unittest
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from httpx import AsyncClient, ASGITransport
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from api.app import app
 import api.database
@@ -23,6 +29,7 @@ class TestAPI(unittest.IsolatedAsyncioTestCase):
         # 清空数据
         await self.db['anime'].delete_many({})
         await self.db['discovered_domains'].delete_many({})
+        await self.db['collect_sources'].delete_many({})
 
         # 插入测试数据
         self.anime_id = ObjectId()
@@ -85,10 +92,17 @@ class TestAPI(unittest.IsolatedAsyncioTestCase):
 
         transport = ASGITransport(app=app)
         self.ac = AsyncClient(transport=transport, base_url='http://test')
+        self.admin_api_key = 'test-admin-key'
+        self._old_admin_api_key = os.environ.get('ADMIN_API_KEY')
+        os.environ['ADMIN_API_KEY'] = self.admin_api_key
 
     async def asyncTearDown(self):
         await self.ac.aclose()
         self.motor_client.close()
+        if self._old_admin_api_key is None:
+            os.environ.pop('ADMIN_API_KEY', None)
+        else:
+            os.environ['ADMIN_API_KEY'] = self._old_admin_api_key
 
     # --- 动画列表测试 ---
 
@@ -218,6 +232,47 @@ class TestAPI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data['name'], '动漫爬虫 API')
+
+    async def test_admin_collect_source_test_uses_collect_engine_fetch_list(self):
+        source_id = ObjectId()
+        await self.db['collect_sources'].insert_one({
+            '_id': source_id,
+            'name': '非凡',
+            'url': 'http://api.ffzyapi.com/api.php/provide/vod/from/ffm3u8/at/xml/',
+            'type': 'xml',
+            'mid': 1,
+            'appid': '',
+            'appkey': '',
+            'bind': False,
+            'status': True,
+            'filter': {'area': '', 'year': '', 'class': '', 'type': []},
+            'last_collect': None,
+            'collect_num': 0,
+            'created_at': datetime.now(),
+            'updated_at': datetime.now(),
+        })
+
+        with patch(
+            'api.routes.collect.collect_engine.fetch_list',
+            AsyncMock(return_value={
+                'list': [{'vod_id': '1', 'vod_name': '测试条目'}],
+                'types': [{'type_id': '30', 'type_name': '日韩动漫'}],
+                'page': 1,
+                'pagecount': 1,
+                'total': 1,
+            }),
+        ) as mock_fetch_list:
+            resp = await self.ac.post(
+                f'/api/admin/collect/sources/{source_id}/test',
+                headers={'x-api-key': self.admin_api_key},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['message'], '连接成功')
+        self.assertIn('测试条目', data['preview'])
+        mock_fetch_list.assert_awaited_once()
 
 
 if __name__ == '__main__':

@@ -237,18 +237,13 @@ async def test_collect_source(source_id: str):
         raise HTTPException(status_code=404, detail='采集源不存在')
 
     try:
-        import httpx
-        params = {'ac': 'list', 'pg': 1, 'h': 24}
-        if source.get('appid'):
-            params['appid'] = source['appid']
-        if source.get('appkey'):
-            params['appkey'] = source['appkey']
-
-        url = collect_engine.build_request_url(source, params)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            text = resp.text[:500]
+        data = await collect_engine.fetch_list(source, page=1, hours=24)
+        preview = ''
+        if source.get('type', 'json').strip().lower() == 'xml':
+            preview = str(data.get('list', [])[:3])
+        else:
+            preview = str(data.get('list', [])[:3])
+        text = preview[:500]
         return {'ok': True, 'message': '连接成功', 'preview': text}
     except Exception as e:
         return {'ok': False, 'message': f'连接失败: {e}'}
