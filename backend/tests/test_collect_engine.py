@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pymongo
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from services.collect_engine import CollectEngine, merge_play_sources
@@ -29,7 +31,8 @@ class FakeCollection:
             url_hashes = set(query['url_hash'].get('$in', []))
             docs = [doc for doc in self.docs if doc.get('url_hash') in url_hashes]
             return FakeCursor(docs)
-        return FakeCursor(self.docs)
+        docs = [doc for doc in self.docs if _matches_query(doc, query)]
+        return FakeCursor(docs)
 
     async def update_one(self, query, update, upsert=False):
         self.update_calls.append({
@@ -37,10 +40,40 @@ class FakeCollection:
             'update': update,
             'upsert': upsert,
         })
+        for doc in self.docs:
+            if _matches_query(doc, query):
+                doc.update(update.get('$set', {}))
+                break
 
     async def insert_one(self, doc):
+        dedup_key = doc.get('dedup_key')
+        if dedup_key and any(existing.get('dedup_key') == dedup_key for existing in self.docs):
+            raise pymongo.errors.DuplicateKeyError('duplicate dedup_key')
+        self.docs.append(dict(doc))
         self.insert_calls.append(doc)
         return type('InsertResult', (), {'inserted_id': doc.get('_id')})()
+
+
+def _matches_query(doc, query):
+    if not query:
+        return True
+    if '$or' in query:
+        return any(_matches_query(doc, sub_query) for sub_query in query['$or'])
+
+    for key, expected in query.items():
+        actual = doc.get(key)
+        if isinstance(expected, dict):
+            if '$in' in expected:
+                values = expected['$in']
+                if isinstance(actual, list):
+                    if not any(value in actual for value in values):
+                        return False
+                elif actual not in values:
+                    return False
+                continue
+        if actual != expected:
+            return False
+    return True
 
 
 class FakeDB:
@@ -129,6 +162,113 @@ class TestCollectEngine(unittest.IsolatedAsyncioTestCase):
             merged['play_sources'][0]['episodes'][0]['url'],
             'https://new.example/1.m3u8',
         )
+
+    async def test_resolve_existing_matches_by_dedup_key(self):
+        engine = CollectEngine()
+        existing_anime = {
+            '_id': 'anime-1',
+            'title': '旧标题',
+            'year': None,
+            'genres': ['动画'],
+            'dedup_key': 'same-dedup',
+            'aliases': [],
+            'play_sources': [],
+        }
+        fake_db = FakeDB({
+            'anime': FakeCollection([existing_anime]),
+        })
+        incoming = {
+            'title': '新标题',
+            'year': 2024,
+            'genres': ['动画'],
+            'dedup_key': 'same-dedup',
+            'aliases': [],
+        }
+
+        with patch('services.collect_engine.get_db', return_value=fake_db):
+            lookup = await engine.find_existing_anime_map([incoming])
+
+        resolved = engine.resolve_existing(incoming, lookup)
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved['_id'], 'anime-1')
+
+    async def test_run_merges_duplicate_dedup_key_within_same_batch(self):
+        engine = CollectEngine()
+        source = {
+            '_id': 'source-3',
+            'name': '魔都',
+            'url': 'https://example.com/api.php/provide/vod',
+            'type': 'json',
+            'bind': False,
+            'collect_num': 0,
+        }
+        anime_collection = FakeCollection()
+        fake_db = FakeDB({
+            'collect_history': FakeCollection(),
+            'anime': anime_collection,
+            'collect_sources': FakeCollection(),
+            'collect_type_bindings': FakeCollection(),
+        })
+
+        same_dedup = 'same-dedup'
+        normalized_docs = [
+            {
+                'title': '测试动画',
+                'year': 2024,
+                'genres': ['动画'],
+                'aliases': [],
+                'source_urls': ['https://detail.example/1'],
+                'play_sources': [{
+                    'source_name': 'm3u8',
+                    'domain': 'example.com',
+                    'episodes': [{'episode': '1', 'url': 'https://cdn.example/1.m3u8'}],
+                }],
+                'dedup_key': same_dedup,
+            },
+            {
+                'title': '测试动画',
+                'year': 2024,
+                'genres': ['动画'],
+                'aliases': [],
+                'source_urls': ['https://detail.example/2'],
+                'play_sources': [{
+                    'source_name': 'm3u8',
+                    'domain': 'example.com',
+                    'episodes': [{'episode': '2', 'url': 'https://cdn.example/2.m3u8'}],
+                }],
+                'dedup_key': same_dedup,
+            },
+        ]
+
+        with (
+            patch('services.collect_engine.get_db', return_value=fake_db),
+            patch.object(engine, 'fetch_list', AsyncMock(return_value={
+                'list': [
+                    {
+                        'vod_id': '1',
+                        'vod_name': '测试动画',
+                        'vod_play_url': '1$https://cdn.example/1.m3u8',
+                        'vod_play_from': 'm3u8',
+                    },
+                    {
+                        'vod_id': '2',
+                        'vod_name': '测试动画',
+                        'vod_play_url': '2$https://cdn.example/2.m3u8',
+                        'vod_play_from': 'm3u8',
+                    },
+                ],
+                'pagecount': 1,
+            })),
+            patch.object(engine, 'normalize', side_effect=normalized_docs),
+            patch('services.collect_engine.build_collect_url_hash', side_effect=['hash-1', 'hash-2']),
+            patch('services.collect_engine.download_poster_with_retry', AsyncMock(return_value='/posters/no-poster.png')),
+        ):
+            result = await engine.run(source=source, range_type='today')
+
+        self.assertEqual(result['created'], 1)
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(len(anime_collection.insert_calls), 1)
+        self.assertEqual(len(anime_collection.update_calls), 1)
 
     async def test_run_filters_by_selected_remote_types_and_fills_local_type(self):
         engine = CollectEngine()

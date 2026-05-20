@@ -15,6 +15,12 @@ import httpx
 from bson import ObjectId
 
 from api.database import get_db
+from anime_spider.utils.dedup import (
+    extract_season_marker,
+    generate_title_aliases,
+    normalize_person_name,
+    normalize_title,
+)
 from utils.cdn_upload import is_cdn_public_url, poster_content_type, upload_poster_to_cdn
 
 logger = logging.getLogger(__name__)
@@ -223,15 +229,24 @@ def parse_play_urls(url_str: str, from_str: str = '') -> list[dict]:
 def build_identity_conditions(anime_data: dict) -> list[dict]:
     """构建查找已有 anime 的查询条件（按匹配优先级）"""
     conditions = []
+    dedup_key = str(anime_data.get('dedup_key', '')).strip()
     douban_id = str(anime_data.get('douban_id', '')).strip()
     title = str(anime_data.get('title', '')).strip()
+    normalized = str(anime_data.get('normalized_title', '')).strip()
+    aliases = [str(alias).strip() for alias in (anime_data.get('aliases') or []) if str(alias).strip()]
     year = int(anime_data.get('year') or 0)
     genres = anime_data.get('genres', [])
 
+    if dedup_key:
+        conditions.append({'dedup_key': dedup_key})
     if douban_id:
         conditions.append({'douban_id': douban_id})
     if title and year > 0:
         conditions.append({'title': title, 'year': year})
+    if normalized:
+        conditions.append({'normalized_title': normalized})
+    if aliases:
+        conditions.append({'aliases': {'$in': aliases}})
     if title and genres:
         conditions.append({'title': title, 'genres': {'$in': genres}})
     if title:
@@ -241,9 +256,16 @@ def build_identity_conditions(anime_data: dict) -> list[dict]:
 
 def find_best_existing(anime_data: dict, candidates: list[dict]) -> Optional[dict]:
     """从候选列表中找最佳匹配的已有 anime"""
+    dedup_key = str(anime_data.get('dedup_key', '')).strip()
     douban_id = str(anime_data.get('douban_id', '')).strip()
     title = str(anime_data.get('title', '')).strip()
+    normalized_title = str(anime_data.get('normalized_title', '')).strip() or normalize_title(title)
     year = int(anime_data.get('year') or 0)
+
+    if dedup_key:
+        for c in candidates:
+            if str(c.get('dedup_key', '')).strip() == dedup_key:
+                return c
 
     if douban_id:
         for c in candidates:
@@ -268,7 +290,113 @@ def find_best_existing(anime_data: dict, candidates: list[dict]) -> Optional[dic
             if str(c.get('title', '')).strip() == title:
                 return c
 
+    if normalized_title:
+        matched: list[tuple[int, dict]] = []
+        for candidate in candidates:
+            score = score_weak_match(candidate, anime_data)
+            if score >= 100:
+                matched.append((score, candidate))
+        if matched:
+            matched.sort(key=lambda value: (value[0], value[1].get('quality_score', 0.0)), reverse=True)
+            return matched[0][1]
+
     return None
+
+
+def score_weak_match(existing: dict, incoming: dict) -> int:
+    existing_title = str(existing.get('normalized_title') or normalize_title(existing.get('title'))).strip()
+    incoming_title = str(incoming.get('normalized_title') or normalize_title(incoming.get('title'))).strip()
+    if not existing_title or not incoming_title:
+        return 0
+
+    existing_season = extract_season_marker(existing_title)
+    incoming_season = extract_season_marker(incoming_title)
+    if season_value(existing_season) != season_value(incoming_season):
+        return 0
+
+    existing_aliases = set(existing.get('aliases') or [])
+    if existing.get('title'):
+        existing_aliases.update(generate_title_aliases(existing.get('title'), existing.get('original_title')))
+    incoming_aliases = set(incoming.get('aliases') or [])
+
+    score = 0
+    if existing_title == incoming_title:
+        score += 100
+    elif incoming_aliases.intersection(existing_aliases):
+        score += 85
+    else:
+        return 0
+
+    year_score = compare_year(existing.get('year'), incoming.get('year'))
+    if year_score < 0:
+        return 0
+    score += year_score
+
+    director_score = compare_director(existing.get('director'), incoming.get('director'))
+    if director_score < 0:
+        return 0
+    score += director_score
+    return score
+
+
+def season_value(season: Optional[dict]) -> int:
+    if not season:
+        return 1
+    return int(season.get('value') or 1)
+
+
+def compare_year(left: Any, right: Any) -> int:
+    if left and right:
+        return 15 if str(left) == str(right) else -1
+    if left or right:
+        return 5
+    return 0
+
+
+def compare_director(left: Any, right: Any) -> int:
+    left_normalized = normalize_person_name(left)
+    right_normalized = normalize_person_name(right)
+    if left_normalized and right_normalized:
+        return 10 if left_normalized == right_normalized else -1
+    if left_normalized or right_normalized:
+        return 3
+    return 0
+
+
+def build_lookup_keys(anime_data: dict) -> list[str]:
+    keys: list[str] = []
+    dedup_key = str(anime_data.get('dedup_key', '')).strip()
+    douban_id = str(anime_data.get('douban_id', '')).strip()
+    title = str(anime_data.get('title', '')).strip()
+    normalized = str(anime_data.get('normalized_title', '')).strip()
+    aliases = [str(alias).strip() for alias in (anime_data.get('aliases') or []) if str(alias).strip()]
+    year = int(anime_data.get('year') or 0)
+    genres = list(anime_data.get('genres', []))
+
+    if dedup_key:
+        keys.append(f'dedup:{dedup_key}')
+    if douban_id:
+        keys.append(f'douban:{douban_id}')
+    if title and year > 0:
+        keys.append(f'title-year:{title}::{year}')
+    if normalized:
+        keys.append(f'normalized:{normalized}')
+    for alias in aliases:
+        keys.append(f'alias:{alias}')
+    if title and genres:
+        keys.append(f'title-genres:{title}::{",".join(sorted(str(g) for g in genres))}')
+    if title:
+        keys.append(f'title:{title}')
+    return keys
+
+
+def append_doc_to_lookup(lookup: dict[str, list[dict]], doc: dict) -> None:
+    for key in build_lookup_keys(doc):
+        bucket = lookup.setdefault(key, [])
+        doc_id = str(doc.get('_id'))
+        if any(str(existing.get('_id')) == doc_id for existing in bucket):
+            continue
+        bucket.append(doc)
 
 
 def sort_types_by_id(types: list[dict]) -> list[dict]:
@@ -743,12 +871,13 @@ class CollectEngine:
             source_urls.append(self.build_request_url(source, {'ac': 'detail', 'ids': source_vod_id}))
 
         # 别名
-        aliases: list[str] = []
-        if sub_title and sub_title != title:
+        aliases = generate_title_aliases(title, original_title)
+        if sub_title and sub_title != title and sub_title not in aliases:
             aliases.append(sub_title)
 
         # 备注
         remarks = str(item.get('vod_remarks') or item.get('note') or '').strip()
+        normalized_title = normalize_title(title)
 
         now = datetime.now(timezone.utc)
 
@@ -756,6 +885,7 @@ class CollectEngine:
             'title': title,
             'original_title': original_title or None,
             'aliases': aliases,
+            'normalized_title': normalized_title,
             'year': year if year > 0 else None,
             'director': director or None,
             'voice_actors': [a.strip() for a in actor.split(',') if a.strip()] if actor else [],
@@ -849,16 +979,25 @@ class CollectEngine:
         for doc in existing_docs:
             douban_id = str(doc.get('douban_id', '')).strip()
             title = str(doc.get('title', '')).strip()
+            normalized_title = str(doc.get('normalized_title', '')).strip()
+            aliases = [str(alias).strip() for alias in (doc.get('aliases') or []) if str(alias).strip()]
             year = int(doc.get('year') or 0)
             genres_list = list(doc.get('genres', []))
+            dedup_key = str(doc.get('dedup_key', '')).strip()
 
             keys = set()
+            if dedup_key:
+                keys.add(f'dedup:{dedup_key}')
             if douban_id:
                 keys.add(f'douban:{douban_id}')
             if title and year > 0:
                 keys.add(f'title-year:{title}::{year}')
+            if normalized_title:
+                keys.add(f'normalized:{normalized_title}')
+            for alias in aliases:
+                keys.add(f'alias:{alias}')
             if title and genres_list:
-                keys.add(f'title-genres:{title}::{",".join(sorted(genres_list))}')
+                keys.add(f'title-genres:{title}::{",".join(sorted(str(g) for g in genres_list))}')
             if title:
                 keys.add(f'title:{title}')
 
@@ -873,25 +1012,10 @@ class CollectEngine:
         lookup: dict[str, list[dict]],
     ) -> Optional[dict]:
         """从查找映射中解析最佳匹配的已有文档"""
-        douban_id = str(anime_data.get('douban_id', '')).strip()
-        title = str(anime_data.get('title', '')).strip()
-        year = int(anime_data.get('year') or 0)
-        genres_list = list(anime_data.get('genres', []))
-
         candidates: list[dict] = []
         seen_ids: set[str] = set()
 
-        search_keys = []
-        if douban_id:
-            search_keys.append(f'douban:{douban_id}')
-        if title and year > 0:
-            search_keys.append(f'title-year:{title}::{year}')
-        if title and genres_list:
-            search_keys.append(f'title-genres:{title}::{",".join(sorted(genres_list))}')
-        if title:
-            search_keys.append(f'title:{title}')
-
-        for key in search_keys:
+        for key in build_lookup_keys(anime_data):
             for doc in lookup.get(key, []):
                 doc_id = str(doc['_id'])
                 if doc_id not in seen_ids:
@@ -907,6 +1031,9 @@ class CollectEngine:
         merged['original_title'] = pick_preferred_string(
             incoming.get('original_title'), existing.get('original_title')
         ) or None
+        merged['normalized_title'] = pick_preferred_string(
+            incoming.get('normalized_title'), existing.get('normalized_title')
+        ) or normalize_title(merged.get('title'))
         merged['director'] = pick_preferred_string(incoming.get('director'), existing.get('director')) or None
         merged['synopsis'] = pick_preferred_string(incoming.get('synopsis'), existing.get('synopsis')) or None
         merged['poster_url'] = pick_preferred_string(incoming.get('poster_url'), existing.get('poster_url')) or None
@@ -1162,6 +1289,7 @@ class CollectEngine:
                         {'_id': doc_id},
                         {'$set': merged},
                     )
+                    append_doc_to_lookup(lookup, {'_id': doc_id, **merged})
                     updated_count += 1
                     action = 'updated'
                 else:
@@ -1178,6 +1306,7 @@ class CollectEngine:
                     anime_data['poster_local'] = poster_local
 
                     await db['anime'].insert_one(anime_data)
+                    append_doc_to_lookup(lookup, anime_data)
                     created_count += 1
                     action = 'created'
 
