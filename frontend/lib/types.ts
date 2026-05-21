@@ -4,7 +4,6 @@ export interface Episode {
 }
 
 export interface PlaySource {
-  domain: string;
   source_name?: string | null;
   provider_id?: string | null;
   source_id?: string | null;

@@ -7,14 +7,14 @@ function assertEqual(actual: string, expected: string, label: string) {
 }
 
 const cdnUrl = 'https://cdn.example.com/api/processed/public/file/poster.jpg';
-assertEqual(resolvePosterUrl(cdnUrl, 'https://fallback.example.com/remote.jpg'), cdnUrl, 'cdn absolute url');
+assertEqual(resolvePosterUrl(cdnUrl, 'https://fallback.example.com/remote.jpg'), `${cdnUrl}?format=webp`, 'cdn absolute url');
 assertEqual(
   resolvePosterUrl('/https://cdn.example.com/api/processed/public/file/poster.jpg', 'https://fallback.example.com/remote.jpg'),
-  cdnUrl,
+  `${cdnUrl}?format=webp`,
   'slash-prefixed absolute url',
 );
 assertEqual(
   resolvePosterUrl('/posters/local.jpg', 'https://fallback.example.com/remote.jpg'),
-  `${PUBLIC_API_BASE}/posters/local.jpg`,
-  'local poster path',
+  `${PUBLIC_API_BASE}/posters/local.jpg?format=webp`,
+  'local poster path with webp',
 );

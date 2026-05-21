@@ -8,11 +8,13 @@ from fastapi import APIRouter, HTTPException, Query
 from api.database import get_db
 from api.models import (
     AnimeDetail,
+    AnimeDetailPublic,
     AnimeFiltersResponse,
     AnimeListItem,
     AnimeListResponse,
     PaginationMeta,
     PlaySourceOut,
+    PlaySourcePublic,
 )
 
 router = APIRouter(prefix='/api/anime', tags=['动画'])
@@ -141,13 +143,13 @@ async def get_anime_filters(
 
     return AnimeFiltersResponse(
         years=[doc['_id'] for doc in year_docs if isinstance(doc.get('_id'), int)],
-        genres=[doc['_id'] for doc in genre_docs if doc.get('_id')],
+        genres=[doc['_id'] for doc in genre_docs if doc.get('_id') and len(str(doc['_id'])) > 1],
     )
 
 
-@router.get('/{anime_id}', response_model=AnimeDetail)
+@router.get('/{anime_id}', response_model=AnimeDetailPublic)
 async def get_anime(anime_id: str):
-    """获取动画详情"""
+    """获取动画详情（公开版，不含内部域名/来源URL）"""
     db = get_db()
     col = db['anime']
 
@@ -165,14 +167,12 @@ async def get_anime(anime_id: str):
             {'episode': ep.get('episode'), 'url': ep.get('url', '')}
             for ep in src.get('episodes', [])
         ]
-        play_sources.append(PlaySourceOut(
-            domain=src.get('domain', ''),
+        play_sources.append(PlaySourcePublic(
             source_name=src.get('source_name'),
             provider_id=src.get('provider_id'),
             source_id=src.get('source_id'),
             episodes=episodes,
             quality=src.get('quality'),
-            raw_url=src.get('raw_url'),
             episode_count=src.get('episode_count'),
             latest_episode=src.get('latest_episode'),
             new_episode_count=src.get('new_episode_count'),
@@ -180,7 +180,7 @@ async def get_anime(anime_id: str):
             last_episode_update=src.get('last_episode_update'),
         ))
 
-    return AnimeDetail(
+    return AnimeDetailPublic(
         _id=str(doc['_id']),
         title=doc.get('title'),
         original_title=doc.get('original_title'),
@@ -193,8 +193,6 @@ async def get_anime(anime_id: str):
         poster_local=doc.get('poster_local'),
         douban_rating=doc.get('douban_rating'),
         imdb_rating=doc.get('imdb_rating'),
-        source_urls=doc.get('source_urls', []),
-        source_domain=doc.get('source_domain'),
         extractor_name=doc.get('extractor_name'),
         extractor_confidence=doc.get('extractor_confidence'),
         site_type=doc.get('site_type'),

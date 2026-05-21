@@ -15,33 +15,37 @@ export async function generateMetadata({
   try {
     const anime = await getAnimeDetail(id);
     const title = anime.title || '视频播放';
-    const description = `${title} - 免费在线观看online - 视频机器人`;
+    const siteTitle = `${title} 在线观看`;
+    const metaDescription =
+      anime.synopsis
+        ? `${anime.synopsis.slice(0, 120)}`
+        : `观看「${title}」${anime.year ? `${anime.year}年` : ''}${anime.genres?.length ? `【${anime.genres.join(' / ')}】` : ''}全集，免登录在线播放。`;
     const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
-    const images = poster ? [{ url: poster }] : undefined;
+    const images = poster ? [{ url: poster, width: 600, height: 800 }] : undefined;
     return {
-      title: `${title} - 免费在线观看online - 视频机器人`,
-      description,
+      title: siteTitle,
+      description: metaDescription,
       alternates: {
         canonical: `/play/${id}`,
       },
       openGraph: {
         type: 'video.other',
-        title: `${title} - 免费在线观看online - 视频机器人`,
-        description,
+        title: siteTitle,
+        description: metaDescription,
         url: `/play/${id}`,
         images,
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${title} - 免费在线观看online - 视频机器人`,
-        description,
+        title: siteTitle,
+        description: metaDescription,
         images: poster ? [poster] : undefined,
       },
     };
   } catch {
     return {
-      title: '免费在线观看online - 视频机器人',
-      description: '免费在线观看online - 视频机器人',
+      title: '视频在线观看',
+      description: '免登录在线播放动漫，海量资源持续更新。',
     };
   }
 }

@@ -291,14 +291,21 @@ export async function saveCollectBindings(
   );
 }
 
+function appendWebp(url: string): string {
+  if (!url) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}format=webp`;
+}
+
 export function resolvePosterUrl(posterLocal?: string | null, posterRemote?: string | null) {
   const normalizedLocal = normalizePosterValue(posterLocal);
   if (normalizedLocal) {
     if (isAbsoluteUrl(normalizedLocal)) {
-      return normalizedLocal;
+      return appendWebp(normalizedLocal);
     }
     const normalized = normalizedLocal.startsWith('/') ? normalizedLocal : `/${normalizedLocal}`;
-    return `${PUBLIC_API_BASE}${normalized}`;
+    return `${PUBLIC_API_BASE}${normalized}?format=webp`;
   }
-  return normalizePosterValue(posterRemote);
+  const remote = normalizePosterValue(posterRemote);
+  return remote ? appendWebp(remote) : remote;
 }

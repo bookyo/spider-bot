@@ -25,6 +25,20 @@ class PlaySourceOut(BaseModel):
     last_episode_update: Optional[datetime] = None
 
 
+class PlaySourcePublic(BaseModel):
+    """播放源公开信息 — 对外暴露时不包含内部域名/原始URL"""
+    source_name: Optional[str] = None
+    provider_id: Optional[str] = None
+    source_id: Optional[str] = None
+    episodes: list[EpisodeOut] = []
+    quality: Optional[str] = None
+    episode_count: Optional[int] = None
+    latest_episode: Optional[str] = None
+    new_episode_count: Optional[int] = None
+    added_at: Optional[datetime] = None
+    last_episode_update: Optional[datetime] = None
+
+
 class AnimeListItem(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -81,6 +95,38 @@ class AnimeDetail(BaseModel):
     incremental_priority: Optional[float] = None
     genres: list[str] = []
     play_sources: list[PlaySourceOut] = []
+    discovered_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AnimeDetailPublic(BaseModel):
+    """动画详情公开版 — 用于播放页，剥离 source_urls / source_domain / play_sources.domain"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(alias='_id')
+    title: Optional[str] = None
+    original_title: Optional[str] = None
+    aliases: list[str] = []
+    year: Optional[int] = None
+    director: Optional[str] = None
+    voice_actors: list[str] = []
+    synopsis: Optional[str] = None
+    poster_url: Optional[str] = None
+    poster_local: Optional[str] = None
+    douban_rating: Optional[float] = None
+    imdb_rating: Optional[float] = None
+    extractor_name: Optional[str] = None
+    extractor_confidence: Optional[float] = None
+    site_type: Optional[str] = None
+    quality_score: Optional[float] = None
+    latest_episode: Optional[str] = None
+    total_episode_count: Optional[int] = None
+    new_episode_count: Optional[int] = None
+    incremental_found: Optional[bool] = None
+    last_incremental_check: Optional[datetime] = None
+    incremental_priority: Optional[float] = None
+    genres: list[str] = []
+    play_sources: list[PlaySourcePublic] = []
     discovered_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

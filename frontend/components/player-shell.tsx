@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimeDetail, Episode, PlaySource } from '@/lib/types';
 import { formatEpisodeLabel, formatSourceLabel, sortEpisodes, cn } from '@/lib/format';
 import { resolvePosterUrl } from '@/lib/api';
+import { PosterImage } from '@/components/poster-image';
 
 interface PlayerPreference {
   sourceId?: string | null;
@@ -15,7 +16,7 @@ interface PlayerPreference {
 const preferenceKey = (animeId: string) => `acg:player:${animeId}`;
 
 function buildSourceSignature(source: PlaySource, index: number) {
-  return source.source_id || source.provider_id || `${source.domain}-${index}`;
+  return source.source_id || source.provider_id || `src-${index}`;
 }
 
 function pickInitialPlayback(anime: AnimeDetail) {
@@ -220,11 +221,9 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
 
           <aside className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card xl:sticky xl:top-6 xl:h-fit">
             <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/30">
-              {poster ? (
-                <img src={poster} alt={anime.title || 'poster'} className="aspect-[3/4] w-full object-cover" />
-              ) : (
-                <div className="flex aspect-[3/4] items-center justify-center text-sm text-ash">暂无海报</div>
-              )}
+              <div className="aspect-[3/4]">
+                <PosterImage src={poster || ''} alt={anime.title || 'poster'} />
+              </div>
             </div>
 
             <div className="mt-5 space-y-4">
