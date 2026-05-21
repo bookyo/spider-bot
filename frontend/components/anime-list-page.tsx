@@ -68,7 +68,7 @@ export async function AnimeListPage({
           defaultKeyword={keyword}
         />
 
-        <div className="mt-8 flex items-center justify-between gap-4">
+        <div className="mt-6 flex items-center justify-between gap-4">
           <div>
             <div className="text-xs uppercase tracking-[0.24em] text-ash">播放库</div>
             <h2 className="mt-2 text-2xl font-semibold text-parchment">筛选结果</h2>

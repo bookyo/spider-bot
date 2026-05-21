@@ -1,10 +1,30 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimeListItem } from '@/lib/types';
 import { resolvePosterUrl } from '@/lib/api';
 import { PosterImage } from '@/components/poster-image';
 
 export function AnimeCard({ anime }: { anime: AnimeListItem }) {
+  const router = useRouter();
   const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
+
+  const handleGenreClick = (e: React.MouseEvent | React.KeyboardEvent, genre: string) => {
+    if ('key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/genre/${encodeURIComponent(genre)}`);
+  };
+
+  const handleYearClick = (e: React.MouseEvent | React.KeyboardEvent) => {
+    if ('key' in e && e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (anime.year) {
+      router.push(`/year/${anime.year}`);
+    }
+  };
 
   return (
     <Link
@@ -22,13 +42,15 @@ export function AnimeCard({ anime }: { anime: AnimeListItem }) {
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/82 to-transparent px-4 pb-4 pt-10">
         <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.24em] text-ash">
           {anime.year ? (
-            <Link
-              href={`/year/${anime.year}`}
-              className="transition hover:text-parchment/80"
-              onClick={(e) => e.stopPropagation()}
+            <span
+              className="cursor-pointer transition hover:text-parchment/80"
+              onClick={handleYearClick}
+              role="link"
+              tabIndex={0}
+              onKeyDown={(e) => handleYearClick(e)}
             >
               {anime.year}
-            </Link>
+            </span>
           ) : (
             <span>未知年代</span>
           )}
@@ -37,14 +59,16 @@ export function AnimeCard({ anime }: { anime: AnimeListItem }) {
         <h3 className="line-clamp-2 text-lg font-semibold text-parchment">{anime.title || '未命名作品'}</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {(anime.genres || []).filter((g) => g.length > 1).slice(0, 3).map((genre) => (
-            <Link
+            <span
               key={genre}
-              href={`/genre/${encodeURIComponent(genre)}`}
-              className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-parchment/80 transition hover:border-ember/40 hover:text-parchment"
-              onClick={(e) => e.stopPropagation()}
+              className="cursor-pointer rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-parchment/80 transition hover:border-ember/40 hover:text-parchment"
+              onClick={(e) => handleGenreClick(e, genre)}
+              role="link"
+              tabIndex={0}
+              onKeyDown={(e) => handleGenreClick(e, genre)}
             >
               {genre}
-            </Link>
+            </span>
           ))}
         </div>
       </div>
