@@ -12,17 +12,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const decodedGenre = decodeURIComponent(genre);
   const displayTitle = `${year} 年 ${decodedGenre} 动漫`;
   const displayDescription = `浏览${year}年「${decodedGenre}」分类的可播放动漫，按片名快速筛选，海量资源在线点播。`;
+  const canonicalGenre = encodeURIComponent(decodedGenre);
+  const canonicalYear = encodeURIComponent(year);
 
   return {
     title: displayTitle,
     description: displayDescription,
     alternates: {
-      canonical: `/genre/${encodeURIComponent(genre)}/year/${encodeURIComponent(year)}`,
+      canonical: `/genre/${canonicalGenre}/year/${canonicalYear}`,
     },
     openGraph: {
       title: displayTitle,
       description: displayDescription,
-      url: `/genre/${encodeURIComponent(genre)}/year/${encodeURIComponent(year)}`,
+      url: `/genre/${canonicalGenre}/year/${canonicalYear}`,
     },
     twitter: {
       title: displayTitle,
@@ -39,6 +41,7 @@ export default async function GenreYearPage({ params, searchParams }: Props) {
   const decodedGenre = decodeURIComponent(genre);
   const page = Number(sp.page || 1);
   const keyword = sp.keyword || '';
+  const basePath = `/genre/${encodeURIComponent(decodedGenre)}/year/${encodeURIComponent(year)}`;
 
   return (
     <AnimeListPage
@@ -46,7 +49,7 @@ export default async function GenreYearPage({ params, searchParams }: Props) {
       year={year}
       keyword={keyword}
       page={page}
-      basePath={`/genre/${encodeURIComponent(genre)}/year/${encodeURIComponent(year)}`}
+      basePath={basePath}
       heading={
         <>
           <span className="text-ember">{decodedGenre}</span>{' '}

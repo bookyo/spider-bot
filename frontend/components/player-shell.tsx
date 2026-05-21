@@ -1,6 +1,7 @@
 'use client';
 
 import Hls from 'hls.js';
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimeDetail, Episode, PlaySource } from '@/lib/types';
 import { formatEpisodeLabel, formatSourceLabel, sortEpisodes, cn } from '@/lib/format';
@@ -268,9 +269,13 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
                   <div className="mb-2 text-xs uppercase tracking-[0.24em] text-ash">分类</div>
                   <div className="flex flex-wrap gap-2">
                     {anime.genres.map((genre) => (
-                      <span key={genre} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85">
+                      <Link
+                        key={genre}
+                        href={`/genre/${encodeURIComponent(genre)}`}
+                        className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
+                      >
                         {genre}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>

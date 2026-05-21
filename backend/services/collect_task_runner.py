@@ -51,6 +51,10 @@ class CollectTaskRunner:
         self.active_source_name = ''
         self._lock = asyncio.Lock()
 
+    async def start(self):
+        """启动时清理遗留任务并恢复为空闲状态。"""
+        await self.recover_stale_tasks()
+
     async def enqueue(
         self,
         source_id: str,
@@ -252,8 +256,6 @@ class CollectTaskRunner:
         stale = []
         for doc in docs:
             tid = str(doc['_id'])
-            if self.active_task_id and tid == self.active_task_id:
-                continue
             hb = doc.get('heartbeat_at')
             if hb and hb.timestamp() * 1000 < cutoff:
                 stale.append(doc)
@@ -264,6 +266,10 @@ class CollectTaskRunner:
         stale_ids = [str(d['_id']) for d in stale]
 
         async with self._lock:
+            if self.active_task_id in stale_ids:
+                self.active_task_id = None
+                self.active_source_name = ''
+                self.running = False
             self.queue = [t for t in self.queue if t not in stale_ids]
 
         for doc in stale:
@@ -281,6 +287,10 @@ class CollectTaskRunner:
             )
 
         await self._refresh_pending_messages()
+        async with self._lock:
+            should_restart = bool(self.queue) and not self.running
+        if should_restart:
+            asyncio.create_task(self._process_queue())
         return len(stale)
 
     async def _process_queue(self):

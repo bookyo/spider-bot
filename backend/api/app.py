@@ -22,6 +22,7 @@ load_backend_env()
 from api.database import connect, close
 from api.routes import admin, anime, domains, stats
 from api.scheduler import start_scheduler, stop_scheduler
+from services.collect_task_runner import collect_task_runner
 
 RATE_LIMIT_MAX_REQUESTS = max(int(os.environ.get('PUBLIC_API_RATE_LIMIT_PER_MINUTE', '60') or 60), 1)
 RATE_LIMIT_WINDOW_SECONDS = 60.0
@@ -47,6 +48,7 @@ def rate_limit_key(request: Request) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect()
+    await collect_task_runner.start()
     await start_scheduler()
     yield
     await stop_scheduler()

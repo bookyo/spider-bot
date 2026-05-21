@@ -12,17 +12,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const decodedGenre = decodeURIComponent(genre);
   const displayTitle = `${decodedGenre} 分类动漫`;
   const displayDescription = `浏览${decodedGenre}分类的可播放动漫，按片名、年份快速筛选，海量资源在线点播。`;
+  const canonicalGenre = encodeURIComponent(decodedGenre);
 
   return {
     title: displayTitle,
     description: displayDescription,
     alternates: {
-      canonical: `/genre/${encodeURIComponent(genre)}`,
+      canonical: `/genre/${canonicalGenre}`,
     },
     openGraph: {
       title: displayTitle,
       description: displayDescription,
-      url: `/genre/${encodeURIComponent(genre)}`,
+      url: `/genre/${canonicalGenre}`,
     },
     twitter: {
       title: displayTitle,
@@ -39,13 +40,14 @@ export default async function GenrePage({ params, searchParams }: Props) {
   const decodedGenre = decodeURIComponent(genre);
   const page = Number(sp.page || 1);
   const keyword = sp.keyword || '';
+  const baseGenrePath = `/genre/${encodeURIComponent(decodedGenre)}`;
 
   return (
     <AnimeListPage
       genre={decodedGenre}
       keyword={keyword}
       page={page}
-      basePath={`/genre/${encodeURIComponent(genre)}`}
+      basePath={baseGenrePath}
       heading={
         <>
           分类{' '}
