@@ -6,7 +6,7 @@ const internalApiKey = process.env.INTERNAL_API_KEY || '';
 
 async function fetchAnimeIds() {
   try {
-    const response = await fetch(`${apiBase}/api/anime?playable_only=true&page=1&page_size=1000&sort_by=discovered_at&sort_order=desc`, {
+    const response = await fetch(`${apiBase}/api/anime?playable_only=true&page=1&page_size=10000&sort_by=discovered_at&sort_order=desc`, {
       headers: internalApiKey ? { 'x-api-key': internalApiKey } : undefined,
       next: { revalidate: 300 },
     });
