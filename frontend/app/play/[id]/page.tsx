@@ -90,88 +90,81 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
 
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-4 md:px-8 xl:px-10">
           <Breadcrumb items={breadcrumbItems} />
-          <Link
-            href="/"
-            className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-parchment/80 transition hover:border-white/20 hover:text-parchment"
-          >
-            返回首页
-          </Link>
         </div>
 
-        {/* 视频播放器 + SSR 侧边栏（grid 并排） */}
+        {/* 播放器 */}
         <PlayerShell
           id={anime._id}
           title={anime.title || ''}
           posterUrl={poster || ''}
           playSources={anime.play_sources}
-        >
-          {/* 以下内容作为 SSR children 传入，在服务端渲染，搜索引擎可抓取 */}
-          <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/30">
-            <div className="aspect-[3/4]">
-              <PosterImage src={poster || ''} alt={anime.title || 'poster'} />
-            </div>
-          </div>
+        />
 
-          <div className="mt-3 space-y-2">
-            {anime.douban_rating != null && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-ash">豆瓣评分</span>
-                <span className="font-medium text-parchment">{anime.douban_rating}</span>
-              </div>
-            )}
-            {anime.imdb_rating != null && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-ash">IMDB</span>
-                <span className="font-medium text-parchment">{anime.imdb_rating}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-ash">年份</span>
-              <span className="font-medium text-parchment">{anime.year || '未知'}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-ash">导演</span>
-              <span className="font-medium text-parchment">{anime.director || '未知'}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-ash">线路数</span>
-              <span className="font-medium text-parchment">{anime.play_sources?.length || 0}</span>
-            </div>
-          </div>
-
-          {!!anime.genres?.length && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {anime.genres.map((genre) => (
-                <Link
-                  key={genre}
-                  href={`/genre/${encodeURIComponent(genre)}`}
-                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
-                >
-                  {genre}
-                </Link>
-              ))}
-            </div>
-          )}
-        </PlayerShell>
-
-        {/* SSR H1 + synopsis（视频下方全宽） */}
+        {/* SSR 侧边栏信息（播放源下方，移动端自然顺序） */}
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
-          <div className="mb-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.24em] text-ash">
-            <span>聚合源</span>
-            <span>{anime.year || '未知年代'}</span>
-            <span>{anime.total_episode_count || 0} 集</span>
+          <div className="flex flex-col gap-4 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card sm:flex-row md:p-6">
+            {poster && (
+              <div className="w-full shrink-0 overflow-hidden rounded-[20px] border border-white/10 bg-black/30 sm:w-[140px]">
+                <div className="aspect-[3/4] sm:aspect-[2/3]">
+                  <PosterImage src={poster} alt={anime.title || 'poster'} />
+                </div>
+              </div>
+            )}
+            <div className="flex flex-1 flex-col justify-center gap-3">
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-parchment/80">
+                {anime.douban_rating != null && (
+                  <span>
+                    <span className="text-ash">豆瓣</span> {anime.douban_rating}
+                  </span>
+                )}
+                {anime.imdb_rating != null && (
+                  <span>
+                    <span className="text-ash">IMDB</span> {anime.imdb_rating}
+                  </span>
+                )}
+                <span>
+                  <span className="text-ash">年份</span> {anime.year || '未知'}
+                </span>
+                <span>
+                  <span className="text-ash">导演</span> {anime.director || '未知'}
+                </span>
+                <span>
+                  <span className="text-ash">线路</span> {anime.play_sources?.length || 0} ·{' '}
+                  <span className="text-ash">总集数</span> {anime.total_episode_count || 0}
+                </span>
+              </div>
+              {!!anime.genres?.length && (
+                <div className="flex flex-wrap gap-2">
+                  {anime.genres.map((genre) => (
+                    <Link
+                      key={genre}
+                      href={`/genre/${encodeURIComponent(genre)}`}
+                      className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
+                    >
+                      {genre}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <h1 className="text-3xl font-semibold text-parchment md:text-4xl">{anime.title || '未命名作品'}</h1>
-          {anime.original_title && anime.original_title !== anime.title ? (
-            <p className="mt-2 text-sm text-ash">{anime.original_title}</p>
-          ) : null}
-          {anime.synopsis ? (
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-parchment/75">{anime.synopsis}</p>
-          ) : null}
+        </div>
+
+        {/* SSR H1 + synopsis（卡牌风格） */}
+        <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
+          <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
+            <h1 className="text-2xl font-semibold text-parchment md:text-3xl">{anime.title || '未命名作品'}</h1>
+            {anime.original_title && anime.original_title !== anime.title ? (
+              <p className="mt-1 text-sm text-ash">{anime.original_title}</p>
+            ) : null}
+            {anime.synopsis ? (
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-parchment/75">{anime.synopsis}</p>
+            ) : null}
+          </div>
         </div>
 
         {/* 相关推荐 */}
-        <div className="mx-auto w-full max-w-[1600px] px-4 pb-20 md:px-8 xl:px-10">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-20 pt-6 md:px-8 xl:px-10">
           <RelatedAnime genres={anime.genres} year={anime.year} excludeId={anime._id} />
         </div>
       </>

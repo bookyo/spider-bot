@@ -1,7 +1,7 @@
 'use client';
 
 import Hls from 'hls.js';
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Episode, PlaySource } from '@/lib/types';
 import { formatEpisodeLabel, formatSourceLabel, sortEpisodes, cn } from '@/lib/format';
 
@@ -22,10 +22,9 @@ export interface PlayerShellProps {
   title: string;
   posterUrl: string;
   playSources: PlaySource[];
-  children?: ReactNode; // SSR 侧边栏内容
 }
 
-export function PlayerShell({ id, title, posterUrl, playSources, children }: PlayerShellProps) {
+export function PlayerShell({ id, title, posterUrl, playSources }: PlayerShellProps) {
   const preparedSources = useMemo(
     () =>
       playSources.map((source) => ({
@@ -136,28 +135,18 @@ export function PlayerShell({ id, title, posterUrl, playSources, children }: Pla
   return (
     <>
       <div className="mx-auto w-full max-w-[1600px] px-4 md:px-8 xl:px-10">
-        {/* 视频 + SSR 侧边栏 grid */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-[30px] border border-white/10 bg-black/30 p-3 shadow-card md:p-4">
-            <div className="overflow-hidden rounded-[24px] bg-black">
-              <div className="aspect-video w-full">
-                <video
-                  ref={videoRef}
-                  className="h-full w-full bg-black object-contain"
-                  controls
-                  playsInline
-                  poster={posterUrl || undefined}
-                />
-              </div>
+        <div className="rounded-[30px] border border-white/10 bg-black/30 p-3 shadow-card md:p-4">
+          <div className="overflow-hidden rounded-[24px] bg-black">
+            <div className="aspect-video w-full">
+              <video
+                ref={videoRef}
+                className="h-full w-full bg-black object-contain"
+                controls
+                playsInline
+                poster={posterUrl || undefined}
+              />
             </div>
           </div>
-
-          {/* SSR 侧边栏（children 来自 page.tsx） */}
-          {children && (
-            <aside className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card xl:sticky xl:top-6 xl:h-fit">
-              {children}
-            </aside>
-          )}
         </div>
 
         {/* 播放源 + 剧集列表 */}
