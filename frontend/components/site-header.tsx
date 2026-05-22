@@ -8,7 +8,7 @@ export function SiteHeader() {
           href="/"
           className="font-[var(--font-display)] text-xl uppercase tracking-[0.08em] text-parchment transition hover:text-ember"
         >
-          ACG Video Index
+          Video Hub
         </Link>
         <nav>
           <ul className="flex items-center gap-6 text-sm text-ash">

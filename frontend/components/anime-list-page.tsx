@@ -61,7 +61,7 @@ export async function AnimeListPage({
       <div className="mx-auto max-w-[1600px] px-4 pt-10 md:px-8 xl:px-10">
         <div className="flex flex-col gap-2">
           <div className="mb-4 inline-flex rounded-full border border-ember/30 bg-ember/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-parchment/80">
-            ACG Video Index
+            Video Hub
           </div>
           <h1 className="font-[var(--font-display)] text-4xl uppercase leading-none tracking-[0.02em] text-parchment md:text-5xl">
             {heading}
@@ -82,7 +82,7 @@ export async function AnimeListPage({
 
         <div className="mt-6 flex items-center justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.24em] text-ash">播放库</div>
+            <div className="text-xs uppercase tracking-[0.24em] text-ash">视频库</div>
             <h2 className="mt-2 text-2xl font-semibold text-parchment">筛选结果</h2>
           </div>
           <div className="text-sm text-ash">
@@ -92,7 +92,7 @@ export async function AnimeListPage({
 
         {list.data.length === 0 ? (
           <div className="mt-12 rounded-[28px] border border-white/10 bg-white/[0.04] p-10 text-center shadow-card">
-            <p className="text-parchment/60">没有找到匹配的动漫</p>
+            <p className="text-parchment/60">没有找到匹配的视频</p>
             <Link href="/" className="mt-4 inline-flex rounded-full bg-ember px-5 py-3 text-sm font-semibold text-black">
               返回首页
             </Link>

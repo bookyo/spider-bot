@@ -62,11 +62,16 @@ export interface JsonLdVideoObject {
   '@type': 'VideoObject';
   name: string;
   description: string;
-  thumbnailUrl: string;
+  thumbnailUrl: string[];
+  url?: string;
+  embedUrl?: string;
   contentUrl?: string;
-  duration?: string;
+  uploadDate?: string;
   datePublished?: string;
-  author?: string;
+  author?: {
+    '@type': 'Person' | 'Organization';
+    name: string;
+  };
   genre?: string[];
 }
 
@@ -74,7 +79,10 @@ export function generateVideoObjectJsonLd(params: {
   name: string;
   description: string;
   thumbnailUrl: string;
+  url?: string;
+  embedUrl?: string;
   contentUrl?: string;
+  uploadDate?: string;
   datePublished?: string;
   author?: string;
   genre?: string[];
@@ -84,11 +92,19 @@ export function generateVideoObjectJsonLd(params: {
     '@type': 'VideoObject',
     name: params.name,
     description: params.description?.slice(0, 500) || '',
-    thumbnailUrl: params.thumbnailUrl,
+    thumbnailUrl: params.thumbnailUrl ? [params.thumbnailUrl] : [],
   };
+  if (params.url) result.url = params.url;
+  if (params.embedUrl) result.embedUrl = params.embedUrl;
   if (params.contentUrl) result.contentUrl = params.contentUrl;
+  if (params.uploadDate) result.uploadDate = params.uploadDate;
   if (params.datePublished) result.datePublished = params.datePublished;
-  if (params.author) result.author = params.author;
+  if (params.author) {
+    result.author = {
+      '@type': 'Person',
+      name: params.author,
+    };
+  }
   if (params.genre?.length) result.genre = params.genre;
   return result;
 }

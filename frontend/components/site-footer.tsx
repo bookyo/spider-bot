@@ -19,10 +19,10 @@ export async function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-3">
           <div>
             <div className="font-[var(--font-display)] text-lg uppercase tracking-[0.08em] text-parchment">
-              ACG Video Index
+              Video Hub
             </div>
             <p className="mt-3 text-sm leading-6 text-ash">
-              收录可直接播放的动漫内容，支持分类、年份和片名快速筛选。
+              聚合多源可播放的在线视频，支持分类、年份和片名快速筛选。
             </p>
           </div>
 

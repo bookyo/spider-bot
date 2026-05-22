@@ -353,7 +353,7 @@ export default function AdminPage() {
             <div className="mb-3 inline-flex rounded-full border border-ember/30 bg-ember/10 px-4 py-2 text-xs uppercase tracking-[0.28em] text-parchment/80">
               Admin Console
             </div>
-            <h1 className="text-4xl font-semibold text-parchment">视频机器人管理台</h1>
+            <h1 className="text-4xl font-semibold text-parchment">Video Hub 管理台</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-parchment/70">
               配置自动增量巡检、自定义爬虫站点，并手动触发单站抓取。
             </p>

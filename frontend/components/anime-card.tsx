@@ -34,7 +34,7 @@ export function AnimeCard({ anime }: { anime: AnimeListItem }) {
       <div className="aspect-[3/4] overflow-hidden bg-gradient-to-b from-white/5 to-white/[0.02]">
         <PosterImage
           src={poster}
-          alt={anime.title || 'anime poster'}
+          alt={anime.title || 'video poster'}
           imgClassName="group-hover:scale-[1.04]"
         />
       </div>

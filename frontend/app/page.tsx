@@ -10,18 +10,18 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
   title: '首页',
-  description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+  description: 'Video Hub 聚合多源在线视频，按片名、年份和分类查找可播放内容。',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: '视频机器人bot 自动收集视频',
-    description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+    title: 'Video Hub - 在线视频聚合',
+    description: 'Video Hub 聚合多源在线视频，按片名、年份和分类查找可播放内容。',
     url: '/',
   },
   twitter: {
-    title: '视频机器人bot 自动收集视频',
-    description: '视频机器人bot 自动收集视频，按片名、年份和分类查找可播放动漫。',
+    title: 'Video Hub - 在线视频聚合',
+    description: 'Video Hub 聚合多源在线视频，按片名、年份和分类查找可播放内容。',
   },
 };
 
@@ -74,20 +74,20 @@ export default async function Home({
           <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] xl:items-end">
             <div>
               <div className="mb-4 inline-flex rounded-full border border-ember/30 bg-ember/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-parchment/80">
-                ACG Video Index
+                Video Hub
               </div>
               <h1 className="max-w-4xl font-[var(--font-display)] text-6xl uppercase leading-none tracking-[0.02em] text-parchment md:text-8xl">
-                Stream anime
+                Watch videos
                 <span className="block text-ember">without dead links</span>
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-parchment/72 md:text-base">
-                收录可直接播放的动漫内容，支持按片名、年份和分类快速筛选。点击海报即可进入播放页，继续观看你想看的集数。
+                聚合多源可播放的在线视频，支持按片名、年份和分类快速筛选。点击海报即可进入播放页，继续观看你想看的集数。
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-2">
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">
-                <div className="text-xs uppercase tracking-[0.24em] text-ash">可播动漫</div>
+                <div className="text-xs uppercase tracking-[0.24em] text-ash">可播视频</div>
                 <div className="mt-4 text-4xl font-semibold text-parchment">{formatCompactNumber(list.meta.total)}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-card">

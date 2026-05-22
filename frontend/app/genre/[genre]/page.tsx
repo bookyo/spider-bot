@@ -10,8 +10,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { genre } = await params;
   const decodedGenre = decodeURIComponent(genre);
-  const displayTitle = `${decodedGenre} 分类动漫`;
-  const displayDescription = `浏览${decodedGenre}分类的可播放动漫，按片名、年份快速筛选，海量资源在线点播。`;
+  const displayTitle = `${decodedGenre} 分类视频`;
+  const displayDescription = `浏览${decodedGenre}分类的可播放视频，按片名、年份快速筛选，海量资源在线点播。`;
   const canonicalGenre = encodeURIComponent(decodedGenre);
 
   return {
@@ -57,7 +57,7 @@ export default async function GenrePage({ params, searchParams }: Props) {
           <span className="text-ember">{decodedGenre}</span>
         </>
       }
-      subheading={`浏览「${decodedGenre}」分类下所有可播放动漫，支持按年份和片名进一步筛选。`}
+      subheading={`浏览「${decodedGenre}」分类下所有可播放视频，支持按年份和片名进一步筛选。`}
     />
   );
 }

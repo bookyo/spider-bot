@@ -4,12 +4,10 @@ import { notFound } from 'next/navigation';
 import { PlayerShell } from '@/components/player-shell';
 import { Breadcrumb } from '@/components/breadcrumb';
 import { RelatedAnime } from '@/components/related-anime';
-import { PosterImage } from '@/components/poster-image';
 import { resolvePosterUrl } from '@/lib/api';
 import { getAnimeDetail } from '@/lib/server-api';
-import { generateVideoObjectJsonLd } from '@/lib/json-ld';
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+import { generateBreadcrumbJsonLd, generateVideoObjectJsonLd } from '@/lib/json-ld';
+import { stripHtmlToText } from '@/lib/text';
 
 export async function generateMetadata({
   params,
@@ -22,8 +20,9 @@ export async function generateMetadata({
     const anime = await getAnimeDetail(id);
     const title = anime.title || '视频播放';
     const siteTitle = `${title} 在线观看`;
-    const metaDescription = anime.synopsis
-      ? `${anime.synopsis.slice(0, 120)}`
+    const cleanSynopsis = stripHtmlToText(anime.synopsis);
+    const metaDescription = cleanSynopsis
+      ? cleanSynopsis.slice(0, 120)
       : `观看「${title}」${anime.year ? `${anime.year}年` : ''}${anime.genres?.length ? `【${anime.genres.join(' / ')}】` : ''}全集，免登录在线播放。`;
     const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
     const images = poster ? [{ url: poster, width: 600, height: 800 }] : undefined;
@@ -61,7 +60,10 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
   try {
     const anime = await getAnimeDetail(id);
     const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
+    const cleanSynopsis = stripHtmlToText(anime.synopsis);
     const firstEpisodeUrl = anime.play_sources?.[0]?.episodes?.[0]?.url || undefined;
+    const canonicalUrl = `/play/${id}`;
+    const publishedDate = anime.year ? `${anime.year}-01-01` : undefined;
 
     const breadcrumbItems = [
       { label: '首页', href: '/' },
@@ -70,13 +72,17 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
         : []),
       { label: anime.title || '视频' },
     ];
+    const breadcrumbJsonLd = generateBreadcrumbJsonLd(breadcrumbItems);
 
     const videoObjectJsonLd = generateVideoObjectJsonLd({
       name: anime.title || '',
-      description: anime.synopsis || '',
+      description: cleanSynopsis,
       thumbnailUrl: poster || '',
+      url: canonicalUrl,
+      embedUrl: canonicalUrl,
       contentUrl: firstEpisodeUrl,
-      datePublished: anime.year ? String(anime.year) : undefined,
+      uploadDate: anime.updated_at || anime.discovered_at || undefined,
+      datePublished: publishedDate,
       author: anime.director || undefined,
       genre: anime.genres || undefined,
     });
@@ -87,73 +93,46 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(videoObjectJsonLd) }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
 
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-4 md:px-8 xl:px-10">
           <Breadcrumb items={breadcrumbItems} />
         </div>
 
-        {/* 桌面：grid 并排播放器 + 信息卡 | 移动：自然堆叠 */}
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
-          <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
-            <PlayerShell
-              id={anime._id}
-              title={anime.title || ''}
-              posterUrl={poster || ''}
-              playSources={anime.play_sources}
-            />
-
-            <div className="mt-6 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card xl:mt-0 xl:sticky xl:top-6">
-              {poster && (
-                <div className="mb-4 overflow-hidden rounded-[20px] border border-white/10 bg-black/30">
-                  <div className="aspect-[3/4]">
-                    <PosterImage src={poster} alt={anime.title || 'poster'} />
-                  </div>
-                </div>
-              )}
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-parchment/80">
-                  {anime.douban_rating != null && (
-                    <span><span className="text-ash">豆瓣</span> {anime.douban_rating}</span>
-                  )}
-                  {anime.imdb_rating != null && (
-                    <span><span className="text-ash">IMDB</span> {anime.imdb_rating}</span>
-                  )}
-                  <span><span className="text-ash">年份</span> {anime.year || '未知'}</span>
-                  <span><span className="text-ash">导演</span> {anime.director || '未知'}</span>
-                  <span>
-                    <span className="text-ash">线路</span> {anime.play_sources?.length || 0} ·{' '}
-                    <span className="text-ash">总集数</span> {anime.total_episode_count || 0}
-                  </span>
-                </div>
-                {!!anime.genres?.length && (
-                  <div className="flex flex-wrap gap-2">
-                    {anime.genres.map((genre) => (
-                      <Link
-                        key={genre}
-                        href={`/genre/${encodeURIComponent(genre)}`}
-                        className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
-                      >
-                        {genre}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <PlayerShell
+            id={anime._id}
+            title={anime.title}
+            originalTitle={anime.original_title}
+            posterUrl={poster || ''}
+            year={anime.year}
+            director={anime.director}
+            doubanRating={anime.douban_rating}
+            imdbRating={anime.imdb_rating}
+            genres={anime.genres}
+            totalEpisodeCount={anime.total_episode_count}
+            playSources={anime.play_sources}
+          />
         </div>
 
-        {/* SSR H1 + synopsis（卡牌风格） */}
-        <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
-            <h1 className="text-2xl font-semibold text-parchment md:text-3xl">{anime.title || '未命名作品'}</h1>
-            {anime.original_title && anime.original_title !== anime.title ? (
-              <p className="mt-1 text-sm text-ash">{anime.original_title}</p>
-            ) : null}
-            {anime.synopsis ? (
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-parchment/75">{anime.synopsis}</p>
-            ) : null}
-          </div>
+        <div className="mx-auto w-full max-w-[1600px] px-4 pt-5 md:px-8 xl:px-10">
+          <section className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:rounded-[28px] md:p-6">
+            <div className="max-w-5xl">
+              <div className="text-[11px] uppercase tracking-[0.26em] text-ash">作品简介</div>
+              <h1 className="mt-3 text-2xl font-semibold leading-tight text-parchment md:text-3xl">
+                {anime.title || '未命名作品'}
+              </h1>
+              {anime.original_title && anime.original_title !== anime.title ? (
+                <p className="mt-2 break-all text-sm text-ash">{anime.original_title}</p>
+              ) : null}
+              <p className="mt-4 text-sm leading-8 text-parchment/76 md:text-base md:leading-8">
+                {cleanSynopsis || '暂无简介'}
+              </p>
+            </div>
+          </section>
         </div>
 
         {/* 相关推荐 */}

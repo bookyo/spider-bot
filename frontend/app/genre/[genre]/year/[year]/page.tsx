@@ -10,8 +10,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { genre, year } = await params;
   const decodedGenre = decodeURIComponent(genre);
-  const displayTitle = `${year} 年 ${decodedGenre} 动漫`;
-  const displayDescription = `浏览${year}年「${decodedGenre}」分类的可播放动漫，按片名快速筛选，海量资源在线点播。`;
+  const displayTitle = `${year} 年 ${decodedGenre} 视频`;
+  const displayDescription = `浏览${year}年「${decodedGenre}」分类的可播放视频，按片名快速筛选，海量资源在线点播。`;
   const canonicalGenre = encodeURIComponent(decodedGenre);
   const canonicalYear = encodeURIComponent(year);
 
@@ -59,7 +59,7 @@ export default async function GenreYearPage({ params, searchParams }: Props) {
           <span className="text-parchment/60">{year}</span>
         </>
       }
-      subheading={`浏览 ${year} 年「${decodedGenre}」分类下所有可播放动漫，支持按片名进一步筛选。`}
+      subheading={`浏览 ${year} 年「${decodedGenre}」分类下所有可播放视频，支持按片名进一步筛选。`}
     />
   );
 }

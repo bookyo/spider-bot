@@ -18,10 +18,22 @@ export function formatSourceLabel(source: PlaySource, index: number) {
 }
 
 export function formatEpisodeLabel(raw?: string | null) {
-  if (!raw) {
+  const value = String(raw || '').trim();
+  if (!value) {
     return '正片';
   }
-  return /^第/.test(raw) ? raw : `第 ${raw} 集`;
+
+  const numbered = value.match(/^第\s*0*(\d+(?:\.\d+)?)\s*[集话話期]?$/);
+  if (numbered) {
+    return numbered[1];
+  }
+
+  const plainNumber = value.match(/^0*(\d+(?:\.\d+)?)$/);
+  if (plainNumber) {
+    return plainNumber[1];
+  }
+
+  return value;
 }
 
 export function formatCompactNumber(value?: number | null) {

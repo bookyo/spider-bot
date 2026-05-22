@@ -9,8 +9,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { year } = await params;
-  const displayTitle = `${year} 年动漫`;
-  const displayDescription = `浏览${year}年的可播放动漫，按分类、片名快速筛选，海量资源在线点播。`;
+  const displayTitle = `${year} 年视频`;
+  const displayDescription = `浏览${year}年的可播放视频，按分类、片名快速筛选，海量资源在线点播。`;
 
   return {
     title: displayTitle,
@@ -53,7 +53,7 @@ export default async function YearPage({ params, searchParams }: Props) {
           <span className="text-ember">{year}</span>
         </>
       }
-      subheading={`浏览 ${year} 年所有可播放动漫，支持按分类和片名进一步筛选。`}
+      subheading={`浏览 ${year} 年所有可播放视频，支持按分类和片名进一步筛选。`}
     />
   );
 }
