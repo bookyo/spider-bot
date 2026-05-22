@@ -4,6 +4,9 @@ import { AnimeCard } from '@/components/anime-card';
 import { AnimeFilterBar } from '@/components/anime-filter-bar';
 import { formatCompactNumber } from '@/lib/format';
 import { getAnimeFilters, getAnimeList, getStats } from '@/lib/server-api';
+import { generateItemListJsonLd } from '@/lib/json-ld';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
   title: '首页',
@@ -53,8 +56,19 @@ export default async function Home({
 
   const [list, filters, stats] = await Promise.all([getAnimeList(params), getAnimeFilters(), getStats()]);
 
+  const itemListJsonLd = generateItemListJsonLd(
+    keyword || genre || year ? '筛选结果' : '最新可播内容',
+    list.data.map((anime) => ({
+      url: `${siteUrl}/play/${anime._id}`,
+    })),
+  );
+
   return (
-    <main className="min-h-screen bg-grain pb-20">
+    <section className="min-h-screen bg-grain pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
       <section className="border-b border-white/10">
         <div className="mx-auto max-w-[1600px] px-4 py-10 md:px-8 xl:px-10 xl:py-14">
           <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] xl:items-end">
@@ -149,6 +163,6 @@ export default async function Home({
           ) : null}
         </div>
       </section>
-    </main>
+    </section>
   );
 }
