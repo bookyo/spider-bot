@@ -1,0 +1,31 @@
+<h2>第五节：内链优化 + 相关推荐</h2>
+<p class="subtitle">构建站点内部链接网络，提升爬虫效率和页面权重传递</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.5em;font-size:1rem;">Footer 内链网络</h3>
+    <ul style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      <li>所有分类链接 → 分类页</li>
+      <li>近年份链接 → 年份页</li>
+      <li>每个链接都是可索引的 URL</li>
+      <li>Footer 在所有页面出现，天然形成链接矩阵</li>
+    </ul>
+  </div>
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.5em;font-size:1rem;">播放页相关推荐</h3>
+    <ul style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      <li>同分类动漫 4-6 个</li>
+      <li>数据从 API 的相近筛选获取</li>
+      <li>Server Component，SSR 渲染</li>
+      <li>AnimeCard 组件复用</li>
+    </ul>
+  </div>
+</div>
+
+<h3 style="margin-top:1.5rem;">具体实现</h3>
+<ul style="color:#d4cbb8;font-size:0.9rem;">
+  <li><strong>Footer</strong>: Server Component，从 <code>getAnimeFilters()</code> 获取分类和年份列表，渲染为链接网格</li>
+  <li><strong>相关推荐 RelatedAnime</strong>: 新增 <code>components/related-anime.tsx</code>，Server Component，用当前动漫的 genres/year 构造 API 查询，返回同类型作品卡片</li>
+  <li><strong>首页最新列表</strong>：已有，保持</li>
+  <li>所有链接使用 <code>&lt;Link&gt;</code> (next/link) 确保客户端导航</li>
+</ul>

@@ -1,0 +1,58 @@
+<h2>SEO 重构设计 — 方案 B 总览</h2>
+<p class="subtitle">逐层推进，每层独立可部署</p>
+
+<div style="display:flex;flex-direction:column;gap:12px;">
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #c96b2c;border-radius:8px;background:rgba(201,107,44,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">1️⃣</div>
+    <div>
+      <strong>语义 HTML 骨架 + 全局导航</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">Layout 层：header/nav/main/footer + 响应式导航栏</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">2️⃣</div>
+    <div>
+      <strong>播放页 SSR 内容拆分</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">H1/synopsis/元信息 → Server Component；PlayerShell → 只留播放器 + 选集</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">3️⃣</div>
+    <div>
+      <strong>结构化数据 JSON-LD</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">WebSite + SearchAction, BreadcrumbList, VideoObject, ItemList</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">4️⃣</div>
+    <div>
+      <strong>面包屑导航</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">所有页面统一的 BreadcrumbList 组件</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">5️⃣</div>
+    <div>
+      <strong>内链优化 + 相关推荐</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">相关动漫推荐区块 + 内部链接矩阵</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">6️⃣</div>
+    <div>
+      <strong>Sitemap 扩展 + 配置优化</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">sitemap limit 提升 + next.config.ts 补充</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;padding:0.8rem 1rem;border:1px solid #5f1e18;border-radius:8px;background:rgba(95,30,24,0.08);">
+    <div style="font-size:1.5rem;min-width:2rem;">7️⃣</div>
+    <div>
+      <strong>测试策略</strong>
+      <div style="font-size:0.85rem;color:#d4cbb8;margin-top:2px;">SSR 输出验证 + JSON-LD 格式校验 + 功能回归测试</div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:1.5rem;color:#d4cbb8;font-size:0.9rem;">
+  以下逐节展开细节，每节展示后等你确认。
+</p>

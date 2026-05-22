@@ -1,0 +1,93 @@
+<h2>播放页布局改进方案</h2>
+<p class="subtitle">恢复 SSR 侧边栏，优化视觉层次</p>
+
+<div class="options">
+  <div class="option" data-choice="current" style="cursor:default;border-color:#5f1e18;">
+    <div class="content">
+      <h3>现状（变化后的问题）</h3>
+      <pre style="font-size:0.8rem;background:rgba(0,0,0,0.3);padding:0.75rem;border-radius:8px;line-height:1.5;">
+┌─────────────────────────────────────────┐
+│ 面包屑 + 返回首页                       │
+├─────────────────────────────────────────┤
+│ SSR 元信息 (H1 + synopsis)              │
+├─────────────────────────────────────────┤
+│ 视频播放器 (全宽)                       │
+├─────────────────────────────────────────┤
+│ 播放源 + 剧集列表 (全宽)                │
+└─────────────────────────────────────────┘
+无海报展示，无评分，无分类链接
+&nbsp;
+      </pre>
+    </div>
+  </div>
+
+  <div class="option" data-choice="proposed" style="cursor:default;border-color:#c96b2c;">
+    <div class="content">
+      <h3>改进方案</h3>
+      <pre style="font-size:0.8rem;background:rgba(0,0,0,0.3);padding:0.75rem;border-radius:8px;line-height:1.5;">
+┌─────────────────────────────────────────┐
+│ 面包屑 + 返回首页                       │
+├───────────────────┬─────────────────────┤
+│                   │ 海报 (SSR)           │
+│ 视频播放器        │ 评分 + 导演 + 年份   │
+│                   │ 分类标签链接         │
+├───────────────────┴─────────────────────┤
+│ SSR H1 + synopsis                        │
+├─────────────────────────────────────────┤
+│ 播放源 + 剧集列表 (全宽)                │
+├─────────────────────────────────────────┤
+│ 相关推荐                                 │
+└─────────────────────────────────────────┘
+&nbsp;
+      </pre>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:1.5rem;">核心改动</h3>
+<div class="cards">
+  <div class="card" style="cursor:default;border-color:#5f1e18;">
+    <div class="card-body">
+      <h4>① 恢复海报 + meta 侧边栏（SSR 渲染）</h4>
+      <p style="font-size:0.85rem;color:#d4cbb8;margin:0;">
+        海报、评分、导演、分类链接不放在 Client 的 PlayerShell 中，在 page.tsx 的 Server Component 中渲染。grid 恢复 <code>xl:grid-cols-[minmax(0,1fr)_340px]</code> 布局。
+      </p>
+    </div>
+  </div>
+  <div class="card" style="cursor:default;border-color:#5f1e18;">
+    <div class="card-body">
+      <h4>② 信息层级重排：视频 → 侧边栏 → H1 → 剧集</h4>
+      <p style="font-size:0.85rem;color:#d4cbb8;margin:0;">
+        桌面：视频 + 侧边栏在一行，H1/synopsis 在下方占据整行。<br>
+        移动：视频全宽 → 海报横向小图 + meta → H1 → 剧集。
+      </p>
+    </div>
+  </div>
+  <div class="card" style="cursor:default;border-color:#5f1e18;">
+    <div class="card-body">
+      <h4>③ 首页 hero 移动端体量压缩</h4>
+      <p style="font-size:0.85rem;color:#d4cbb8;margin:0;">
+        手机端 8xl 标题 → 5xl，统计卡片 2×2 改为横向滚动，减少首屏垂直高度。
+      </p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:1.5rem;">移动端 vs 桌面端布局</h3>
+<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+  <tr><th style="text-align:left;padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.2);">区域</th>
+      <th style="text-align:left;padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.2);">桌面 (≥1280px)</th>
+      <th style="text-align:left;padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.2);">移动 (<768px)</th></tr>
+  <tr><td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">视频 + 侧边栏</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">grid 并排</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">视频全宽，海报横条在下</td></tr>
+  <tr><td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">H1 + synopsis</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">视频下方整行</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">视频下方整行</td></tr>
+  <tr><td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">剧集列表</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">全宽</td>
+      <td style="padding:0.5rem;border-bottom:1px solid rgba(244,234,215,0.1);">全宽</td></tr>
+  <tr><td style="padding:0.5rem;">相关推荐</td>
+      <td style="padding:0.5rem;">全宽，4列</td>
+      <td style="padding:0.5rem;">全宽，2列</td></tr>
+</table>

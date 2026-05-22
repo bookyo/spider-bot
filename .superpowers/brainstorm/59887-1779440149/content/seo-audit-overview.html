@@ -1,0 +1,44 @@
+<h2>🎯 SEO Audit: 当前前端状态总览</h2>
+<p class="subtitle">基于全面代码审查发现的 SEO 缺口</p>
+
+<div class="options">
+  <div class="option" data-choice="all" style="cursor:default;border-color:#c96b2c;">
+    <div class="content">
+      <h3>已覆盖的部分 ✅</h3>
+      <ul style="margin:0.5em 0 0;padding-left:1.2em;font-size:0.9rem;color:#d4cbb8;">
+        <li>SSR 页面架构 (Next.js App Router)</li>
+        <li>基础 Metadata / OpenGraph / Twitter Cards</li>
+        <li>Robots.txt + Sitemap.xml</li>
+        <li>语言声明 <code>zh-CN</code></li>
+        <li>规范的 <code>generateMetadata</code> 动态 meta</li>
+        <li>ISR (<code>revalidate</code>) 策略</li>
+      </ul>
+    </div>
+  </div>
+  <div class="option" data-choice="all" style="cursor:default;border-color:#5f1e18;">
+    <div class="content">
+      <h3>缺失的关键部分 ❌</h3>
+      <ul style="margin:0.5em 0 0;padding-left:1.2em;font-size:0.9rem;color:#d4cbb8;">
+        <li><strong>结构化数据 (JSON-LD)</strong> — 无 VideoObject、BreadcrumbList、WebSite 标记</li>
+        <li><strong>语义 HTML 骨架</strong> — 无 <code>&lt;header&gt;</code>/<code>&lt;nav&gt;</code>/<code>&lt;footer&gt;</code></li>
+        <li><strong>面包屑导航</strong> — 所有页面都没有</li>
+        <li><strong>播放页内容在客户端渲染</strong> — H1、简介、剧集列表在 Client Component 中</li>
+        <li><strong>无网站导航栏</strong> — 用户无法在页面间跳转</li>
+        <li><strong>无「相关推荐」内链</strong> — 内部连接矩阵缺失</li>
+      </ul>
+    </div>
+  </div>
+  <div class="option" data-choice="all" style="cursor:default;border-color:#5f1e18;">
+    <div class="content">
+      <h3>技术深度问题 🔧</h3>
+      <ul style="margin:0.5em 0 0;padding-left:1.2em;font-size:0.9rem;color:#d4cbb8;">
+        <li>Sitemap 只取 200 条 → 需要分页或 sitemap index</li>
+        <li>使用原生 <code>&lt;img&gt;</code> 而非 <code>next/image</code> → 无自动优化</li>
+        <li>缺少 <code>next.config.ts</code> 的 images / headers 配置</li>
+        <li>过滤栏中 <code>/genre/[genre]/year/[year]</code> 路径无对应路由</li>
+        <li>缺少成功搜索页面</li>
+        <li>无 About / 关于页面（信任信号）</li>
+      </ul>
+    </div>
+  </div>
+</div>

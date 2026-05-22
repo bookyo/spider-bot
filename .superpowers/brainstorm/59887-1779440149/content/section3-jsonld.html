@@ -1,0 +1,57 @@
+<h2>第三节：结构化数据 JSON-LD</h2>
+<p class="subtitle">Rich Results 的核心 — 让 Google 理解页面内容</p>
+
+<div style="display:flex;flex-direction:column;gap:16px;">
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.3em;font-size:1rem;">1. WebSite + SearchAction (Layout 层)</h3>
+    <p style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      全局注入，所有页面都有。让 SERP 显示站点搜索框 (Sitelinks Search Box)。
+    </p>
+    <pre style="font-size:0.75rem;margin-top:0.5em;background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:6px;overflow-x:auto;">
+{"@context":"https://schema.org",
+ "@type":"WebSite","url":"https://vbot.reelbit.cc",
+ "potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint",
+   "urlTemplate":"https://vbot.reelbit.cc/?keyword={search_term_string}"},
+   "query-input":"required name=search_term_string"}}</pre>
+  </div>
+
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.3em;font-size:1rem;">2. BreadcrumbList (所有页面)</h3>
+    <p style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      与 breadcrumb 组件同步生成，确保视觉 breadcrumb 和 JSON-LD 一致。
+    </p>
+  </div>
+
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.3em;font-size:1rem;">3. VideoObject (播放页)</h3>
+    <p style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      最重要的结构化数据。让 Google 展示视频预览和播放按钮。
+    </p>
+    <pre style="font-size:0.75rem;margin-top:0.5em;background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:6px;overflow-x:auto;">
+{"@context":"https://schema.org","@type":"VideoObject",
+ "name":"{anime.title}","description":"{anime.synopsis}",
+ "thumbnailUrl":"{poster}","contentUrl":"{firstEpisode.url}",
+ "duration":"{calculated}","datePublished":"{anime.year}",
+ "author":"{anime.director}","genre":["{genres}"]}</pre>
+  </div>
+
+  <div style="padding:1rem;border:1px solid #c96b2c;border-radius:12px;background:rgba(201,107,44,0.08);">
+    <h3 style="margin:0 0 0.3em;font-size:1rem;">4. ItemList (首页/分类页/年份页)</h3>
+    <p style="margin:0;font-size:0.85rem;color:#d4cbb8;">
+      列表页使用 ItemList + ListItem 标记，让 Google 理解页面是一个内容集合。
+    </p>
+    <pre style="font-size:0.75rem;margin-top:0.5em;background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:6px;overflow-x:auto;">
+{"@context":"https://schema.org","@type":"ItemList",
+ "name":"{title}","itemListElement":[
+   {"@type":"ListItem","position":1,"url":"/play/{id1}"},
+   {"@type":"ListItem","position":2,"url":"/play/{id2}"}]}</pre>
+  </div>
+</div>
+
+<h3 style="margin-top:1.5rem;">实现方式</h3>
+<ul style="color:#d4cbb8;font-size:0.9rem;">
+  <li>新增 <code>lib/json-ld.ts</code> — 纯函数，生成各类型的 JSON-LD 对象</li>
+  <li>Layout 级：<code>&lt;script type="application/ld+json" dangerouslySetInnerHTML /&gt;</code> 注入 WebSite</li>
+  <li>各页面 inline 注入 BreadcrumbList + 页面特有 JSON-LD</li>
+  <li>JSON 字符串先 JSON.stringify 再插入，避免 XSS</li>
+</ul>
