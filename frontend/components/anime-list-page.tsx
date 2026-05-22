@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { AnimeCard } from '@/components/anime-card';
 import { AnimeFilterBar } from '@/components/anime-filter-bar';
 import { getAnimeFilters, getAnimeList } from '@/lib/server-api';
+import { generateItemListJsonLd } from '@/lib/json-ld';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 interface AnimeListPageProps {
   genre?: string;
@@ -36,6 +39,11 @@ export async function AnimeListPage({
 
   const [list, filters] = await Promise.all([getAnimeList(params), getAnimeFilters()]);
 
+  const itemListJsonLd = generateItemListJsonLd(
+    '筛选结果',
+    list.data.map((a) => ({ url: `${siteUrl}/play/${a._id}` })),
+  );
+
   const buildPageUrl = (pageNum: number) => {
     const qs = new URLSearchParams();
     if (keyword) qs.set('keyword', keyword);
@@ -45,8 +53,12 @@ export async function AnimeListPage({
   };
 
   return (
-    <main className="min-h-screen bg-grain pb-20">
-      <section className="mx-auto max-w-[1600px] px-4 pt-10 md:px-8 xl:px-10">
+    <section className="min-h-screen bg-grain pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
+      <div className="mx-auto max-w-[1600px] px-4 pt-10 md:px-8 xl:px-10">
         <div className="flex flex-col gap-2">
           <div className="mb-4 inline-flex rounded-full border border-ember/30 bg-ember/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-parchment/80">
             ACG Video Index
@@ -58,7 +70,7 @@ export async function AnimeListPage({
             <p className="text-sm leading-7 text-parchment/72 md:text-base">{subheading}</p>
           )}
         </div>
-      </section>
+      </div>
 
       <section className="mx-auto max-w-[1600px] px-4 py-8 md:px-8 xl:px-10">
         <AnimeFilterBar
@@ -115,6 +127,6 @@ export async function AnimeListPage({
           </>
         )}
       </section>
-    </main>
+    </section>
   );
 }
