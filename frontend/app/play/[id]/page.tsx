@@ -92,60 +92,53 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
           <Breadcrumb items={breadcrumbItems} />
         </div>
 
-        {/* 播放器 */}
-        <PlayerShell
-          id={anime._id}
-          title={anime.title || ''}
-          posterUrl={poster || ''}
-          playSources={anime.play_sources}
-        />
-
-        {/* SSR 侧边栏信息（播放源下方，移动端自然顺序） */}
+        {/* 桌面：grid 并排播放器 + 信息卡 | 移动：自然堆叠 */}
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
-          <div className="flex flex-col gap-4 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card sm:flex-row md:p-6">
-            {poster && (
-              <div className="w-full shrink-0 overflow-hidden rounded-[20px] border border-white/10 bg-black/30 sm:w-[140px]">
-                <div className="aspect-[3/4] sm:aspect-[2/3]">
-                  <PosterImage src={poster} alt={anime.title || 'poster'} />
-                </div>
-              </div>
-            )}
-            <div className="flex flex-1 flex-col justify-center gap-3">
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-parchment/80">
-                {anime.douban_rating != null && (
-                  <span>
-                    <span className="text-ash">豆瓣</span> {anime.douban_rating}
-                  </span>
-                )}
-                {anime.imdb_rating != null && (
-                  <span>
-                    <span className="text-ash">IMDB</span> {anime.imdb_rating}
-                  </span>
-                )}
-                <span>
-                  <span className="text-ash">年份</span> {anime.year || '未知'}
-                </span>
-                <span>
-                  <span className="text-ash">导演</span> {anime.director || '未知'}
-                </span>
-                <span>
-                  <span className="text-ash">线路</span> {anime.play_sources?.length || 0} ·{' '}
-                  <span className="text-ash">总集数</span> {anime.total_episode_count || 0}
-                </span>
-              </div>
-              {!!anime.genres?.length && (
-                <div className="flex flex-wrap gap-2">
-                  {anime.genres.map((genre) => (
-                    <Link
-                      key={genre}
-                      href={`/genre/${encodeURIComponent(genre)}`}
-                      className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
-                    >
-                      {genre}
-                    </Link>
-                  ))}
+          <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
+            <PlayerShell
+              id={anime._id}
+              title={anime.title || ''}
+              posterUrl={poster || ''}
+              playSources={anime.play_sources}
+            />
+
+            <div className="mt-6 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card xl:mt-0 xl:sticky xl:top-6">
+              {poster && (
+                <div className="mb-4 overflow-hidden rounded-[20px] border border-white/10 bg-black/30">
+                  <div className="aspect-[3/4]">
+                    <PosterImage src={poster} alt={anime.title || 'poster'} />
+                  </div>
                 </div>
               )}
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-parchment/80">
+                  {anime.douban_rating != null && (
+                    <span><span className="text-ash">豆瓣</span> {anime.douban_rating}</span>
+                  )}
+                  {anime.imdb_rating != null && (
+                    <span><span className="text-ash">IMDB</span> {anime.imdb_rating}</span>
+                  )}
+                  <span><span className="text-ash">年份</span> {anime.year || '未知'}</span>
+                  <span><span className="text-ash">导演</span> {anime.director || '未知'}</span>
+                  <span>
+                    <span className="text-ash">线路</span> {anime.play_sources?.length || 0} ·{' '}
+                    <span className="text-ash">总集数</span> {anime.total_episode_count || 0}
+                  </span>
+                </div>
+                {!!anime.genres?.length && (
+                  <div className="flex flex-wrap gap-2">
+                    {anime.genres.map((genre) => (
+                      <Link
+                        key={genre}
+                        href={`/genre/${encodeURIComponent(genre)}`}
+                        className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
+                      >
+                        {genre}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
