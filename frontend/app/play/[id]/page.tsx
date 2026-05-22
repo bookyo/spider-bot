@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { PlayerShell } from '@/components/player-shell';
 import { Breadcrumb } from '@/components/breadcrumb';
 import { RelatedAnime } from '@/components/related-anime';
+import { PosterImage } from '@/components/poster-image';
 import { resolvePosterUrl } from '@/lib/api';
 import { getAnimeDetail } from '@/lib/server-api';
 import { generateVideoObjectJsonLd } from '@/lib/json-ld';
@@ -97,7 +98,63 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
           </Link>
         </div>
 
-        {/* SSR 元信息 */}
+        {/* 视频播放器 + SSR 侧边栏（grid 并排） */}
+        <PlayerShell
+          id={anime._id}
+          title={anime.title || ''}
+          posterUrl={poster || ''}
+          playSources={anime.play_sources}
+        >
+          {/* 以下内容作为 SSR children 传入，在服务端渲染，搜索引擎可抓取 */}
+          <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/30">
+            <div className="aspect-[3/4]">
+              <PosterImage src={poster || ''} alt={anime.title || 'poster'} />
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {anime.douban_rating != null && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ash">豆瓣评分</span>
+                <span className="font-medium text-parchment">{anime.douban_rating}</span>
+              </div>
+            )}
+            {anime.imdb_rating != null && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-ash">IMDB</span>
+                <span className="font-medium text-parchment">{anime.imdb_rating}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-ash">年份</span>
+              <span className="font-medium text-parchment">{anime.year || '未知'}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-ash">导演</span>
+              <span className="font-medium text-parchment">{anime.director || '未知'}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-ash">线路数</span>
+              <span className="font-medium text-parchment">{anime.play_sources?.length || 0}</span>
+            </div>
+          </div>
+
+          {!!anime.genres?.length && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {anime.genres.map((genre) => (
+                <Link
+                  key={genre}
+                  href={`/genre/${encodeURIComponent(genre)}`}
+                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
+                >
+                  {genre}
+                </Link>
+              ))}
+            </div>
+          )}
+        </PlayerShell>
+
+        {/* SSR H1 + synopsis（视频下方全宽） */}
         <div className="mx-auto w-full max-w-[1600px] px-4 pt-6 md:px-8 xl:px-10">
           <div className="mb-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.24em] text-ash">
             <span>聚合源</span>
@@ -113,16 +170,8 @@ export default async function PlayPage({ params }: { params: Promise<{ id: strin
           ) : null}
         </div>
 
-        {/* 播放器 */}
-        <PlayerShell
-          id={anime._id}
-          title={anime.title || ''}
-          posterUrl={poster || ''}
-          playSources={anime.play_sources}
-        />
-
         {/* 相关推荐 */}
-        <div className="mx-auto w-full max-w-[1600px] px-4 md:px-8 xl:px-10">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-20 md:px-8 xl:px-10">
           <RelatedAnime genres={anime.genres} year={anime.year} excludeId={anime._id} />
         </div>
       </>
