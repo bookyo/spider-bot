@@ -1,12 +1,9 @@
 'use client';
 
 import Hls from 'hls.js';
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimeDetail, Episode, PlaySource } from '@/lib/types';
+import { Episode, PlaySource } from '@/lib/types';
 import { formatEpisodeLabel, formatSourceLabel, sortEpisodes, cn } from '@/lib/format';
-import { resolvePosterUrl } from '@/lib/api';
-import { PosterImage } from '@/components/poster-image';
 
 interface PlayerPreference {
   sourceId?: string | null;
@@ -20,16 +17,23 @@ function buildSourceSignature(source: PlaySource, index: number) {
   return source.source_id || source.provider_id || `src-${index}`;
 }
 
-function pickInitialPlayback(anime: AnimeDetail) {
-  const sources = anime.play_sources.map((source) => ({
-    ...source,
-    episodes: sortEpisodes(source.episodes || []),
-  }));
-  return sources;
+export interface PlayerShellProps {
+  id: string;
+  title: string;
+  posterUrl: string;
+  playSources: PlaySource[];
 }
 
-export function PlayerShell({ anime }: { anime: AnimeDetail }) {
-  const preparedSources = useMemo(() => pickInitialPlayback(anime), [anime]);
+export function PlayerShell({ id, title, posterUrl, playSources }: PlayerShellProps) {
+  const preparedSources = useMemo(
+    () =>
+      playSources.map((source) => ({
+        ...source,
+        episodes: sortEpisodes(source.episodes || []),
+      })),
+    [playSources],
+  );
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [selectedSourceIndex, setSelectedSourceIndex] = useState(0);
   const [selectedEpisodeUrl, setSelectedEpisodeUrl] = useState<string | null>(null);
@@ -45,7 +49,7 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
       return;
     }
 
-    const raw = window.localStorage.getItem(preferenceKey(anime._id));
+    const raw = window.localStorage.getItem(preferenceKey(id));
     let preference: PlayerPreference | null = null;
     if (raw) {
       try {
@@ -77,7 +81,7 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
 
     setSelectedSourceIndex(0);
     setSelectedEpisodeUrl(preparedSources[0]?.episodes[0]?.url || null);
-  }, [anime._id, preparedSources]);
+  }, [id, preparedSources]);
 
   useEffect(() => {
     if (!selectedSource || !selectedEpisode) {
@@ -85,14 +89,14 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
     }
 
     window.localStorage.setItem(
-      preferenceKey(anime._id),
+      preferenceKey(id),
       JSON.stringify({
         sourceId: buildSourceSignature(selectedSource, selectedSourceIndex),
         episode: selectedEpisode.episode,
         episodeUrl: selectedEpisode.url,
       } satisfies PlayerPreference),
     );
-  }, [anime._id, selectedEpisode, selectedSource, selectedSourceIndex]);
+  }, [id, selectedEpisode, selectedSource, selectedSourceIndex]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -124,12 +128,13 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
     };
   }, [selectedEpisode?.url]);
 
-  const poster = resolvePosterUrl(anime.poster_local, anime.poster_url);
-  const currentSourceLabel = selectedSource ? formatSourceLabel(selectedSource, selectedSourceIndex) : '暂无线路';
+  const currentSourceLabel = selectedSource
+    ? formatSourceLabel(selectedSource, selectedSourceIndex)
+    : '暂无线路';
 
   return (
-    <div className="min-h-screen bg-grain">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8 px-4 py-6 md:px-8 xl:px-10">
+    <>
+      <div className="mx-auto w-full max-w-[1600px] px-4 md:px-8 xl:px-10">
         <div className="rounded-[30px] border border-white/10 bg-black/30 p-3 shadow-card md:p-4">
           <div className="overflow-hidden rounded-[24px] bg-black">
             <div className="aspect-video w-full">
@@ -138,25 +143,19 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
                 className="h-full w-full bg-black object-contain"
                 controls
                 playsInline
-                poster={poster || undefined}
+                poster={posterUrl || undefined}
               />
             </div>
           </div>
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="min-w-0 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
+        <section className="mt-6 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card md:p-6">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
               <div>
                 <div className="mb-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.24em] text-ash">
-                  <span>{'聚合源'}</span>
-                  <span>{anime.year || '未知年代'}</span>
-                  <span>{anime.total_episode_count || 0} 集</span>
+                  <span>聚合源</span>
+                  <span>{preparedSources.length} 线路</span>
                 </div>
-                <h1 className="text-3xl font-semibold text-parchment md:text-4xl">{anime.title || '未命名作品'}</h1>
-                {anime.original_title && anime.original_title !== anime.title ? (
-                  <p className="mt-2 text-sm text-ash">{anime.original_title}</p>
-                ) : null}
               </div>
               <div className="rounded-full border border-ember/30 bg-ember/10 px-4 py-2 text-xs text-parchment/80">
                 当前播放：{currentSourceLabel} / {formatEpisodeLabel(selectedEpisode?.episode)}
@@ -218,79 +217,10 @@ export function PlayerShell({ anime }: { anime: AnimeDetail }) {
                 </div>
               </div>
             </div>
-          </section>
-
-          <aside className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-card xl:sticky xl:top-6 xl:h-fit">
-            <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/30">
-              <div className="aspect-[3/4]">
-                <PosterImage src={poster || ''} alt={anime.title || 'poster'} />
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <div>
-                <div className="mb-1 text-xs uppercase tracking-[0.24em] text-ash">影片信息</div>
-                <div className="text-lg font-semibold">{anime.title}</div>
-              </div>
-
-              <dl className="space-y-3 text-sm text-parchment/80">
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-ash">年份</dt>
-                  <dd>{anime.year || '未知'}</dd>
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-ash">导演</dt>
-                  <dd className="text-right">{anime.director || '未知'}</dd>
-                </div>
-                {anime.douban_rating != null ? (
-                  <div className="flex items-start justify-between gap-4">
-                    <dt className="text-ash">豆瓣评分</dt>
-                    <dd>{anime.douban_rating}</dd>
-                  </div>
-                ) : null}
-                {anime.imdb_rating != null ? (
-                  <div className="flex items-start justify-between gap-4">
-                    <dt className="text-ash">IMDB评分</dt>
-                    <dd>{anime.imdb_rating}</dd>
-                  </div>
-                ) : null}
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-ash">线路数</dt>
-                  <dd>{preparedSources.length}</dd>
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-ash">总集数</dt>
-                  <dd>{anime.total_episode_count || 0}</dd>
-                </div>
-              </dl>
-
-              {!!anime.genres?.length && (
-                <div>
-                  <div className="mb-2 text-xs uppercase tracking-[0.24em] text-ash">分类</div>
-                  <div className="flex flex-wrap gap-2">
-                    {anime.genres.map((genre) => (
-                      <Link
-                        key={genre}
-                        href={`/genre/${encodeURIComponent(genre)}`}
-                        className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-parchment/85 transition hover:border-ember/50 hover:bg-ember/10 hover:text-parchment"
-                      >
-                        {genre}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {anime.synopsis ? (
-                <div>
-                  <div className="mb-2 text-xs uppercase tracking-[0.24em] text-ash">简介</div>
-                  <p className="text-sm leading-7 text-parchment/75">{anime.synopsis}</p>
-                </div>
-              ) : null}
-            </div>
-          </aside>
-        </div>
+        </section>
       </div>
-    </div>
+    </>
   );
 }
+
+export type { PlaySource, Episode } from '@/lib/types';
