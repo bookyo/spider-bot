@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { Bebas_Neue, Noto_Sans_SC } from 'next/font/google';
 import '@/app/globals.css';
+import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
+import { generateWebsiteJsonLd } from '@/lib/json-ld';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -58,10 +61,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const websiteJsonLd = generateWebsiteJsonLd(siteUrl);
+
   return (
     <html lang="zh-CN" data-scroll-behavior="smooth">
       <body className={`${displayFont.variable} ${bodyFont.variable} bg-coal font-[var(--font-body)] text-parchment antialiased`}>
-        {children}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
+        <SiteHeader />
+        <main>{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );
