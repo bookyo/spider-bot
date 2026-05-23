@@ -19,6 +19,7 @@ from anime_spider.utils.dedup import (
     summarize_play_sources,
 )
 from anime_spider.utils.poster import download_poster
+from utils.anime_queries import ANIME_LIST_COMPOUND_INDEX
 
 logger = logging.getLogger(__name__)
 
@@ -647,6 +648,7 @@ class AnimePipeline:
             self.anime_col.create_index('play_sources.provider_id')
             self.anime_col.create_index('play_sources.source_id')
             self.anime_col.create_index([('year', -1), ('discovered_at', -1)])
+            self.anime_col.create_index(ANIME_LIST_COMPOUND_INDEX)
             self.anime_col.create_index('discovered_at')
 
             self.domain_col.create_index('domain', unique=True)

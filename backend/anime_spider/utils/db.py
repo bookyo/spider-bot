@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pymongo
 from scrapy.utils.project import get_project_settings
+from utils.anime_queries import ANIME_LIST_COMPOUND_INDEX
 
 
 class MongoDB:
@@ -54,6 +55,7 @@ class MongoDB:
         anime_col.create_index('source_domain')
         anime_col.create_index('play_sources.domain')
         anime_col.create_index([('year', -1), ('discovered_at', -1)])
+        anime_col.create_index(ANIME_LIST_COMPOUND_INDEX)
         anime_col.create_index('discovered_at')
 
         # 域名集合索引

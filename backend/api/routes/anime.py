@@ -1,7 +1,6 @@
 """动画相关 API 接口"""
 
 import math
-import re
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query
 
@@ -16,6 +15,7 @@ from api.models import (
     PlaySourceOut,
     PlaySourcePublic,
 )
+from utils.anime_queries import ANIME_LIST_INDEXES, build_anime_list_query
 
 router = APIRouter(prefix='/api/anime', tags=['动画'])
 
@@ -37,28 +37,14 @@ async def list_anime(
     db = get_db()
     col = db['anime']
 
-    # 构建查询条件（用户输入需转义防注入）
-    query = {}
-    if keyword:
-        escaped = re.escape(keyword.strip())
-        query['$or'] = [
-            {'title': {'$regex': escaped, '$options': 'i'}},
-            {'original_title': {'$regex': escaped, '$options': 'i'}},
-            {'aliases': {'$regex': escaped, '$options': 'i'}},
-            {'normalized_title': {'$regex': escaped.lower(), '$options': 'i'}},
-            {'voice_actors': {'$regex': escaped, '$options': 'i'}},
-            {'director': {'$regex': escaped, '$options': 'i'}},
-        ]
-    if year:
-        query['year'] = year
-    if genre:
-        query['genres'] = {'$regex': re.escape(genre.strip()), '$options': 'i'}
-    if director:
-        query['director'] = {'$regex': re.escape(director.strip()), '$options': 'i'}
-    if incremental_only:
-        query['incremental_found'] = True
-    if playable_only:
-        query['play_sources.0'] = {'$exists': True}
+    query = build_anime_list_query(
+        keyword=keyword,
+        year=year,
+        genre=genre,
+        director=director,
+        incremental_only=incremental_only,
+        playable_only=playable_only,
+    )
 
     # 排序
     sort_dir = -1 if sort_order == 'desc' else 1

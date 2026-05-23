@@ -141,6 +141,39 @@ class TestAPI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(data['data']), 1)
         self.assertEqual(data['data'][0]['title'], '进击的巨人')
 
+    async def test_list_anime_genre_filter_requires_exact_array_member(self):
+        resp = await self.ac.get('/api/anime?genre=动')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['data']), 0)
+
+    async def test_list_anime_genre_and_year_filter(self):
+        await self.db['anime'].insert_one({
+            '_id': ObjectId(),
+            'title': '奇幻新作',
+            'year': 2019,
+            'director': '测试导演',
+            'voice_actors': [],
+            'genres': ['奇幻'],
+            'dedup_key': 'test_key_3',
+            'play_sources': [
+                {
+                    'domain': 'player.example.com',
+                    'episodes': [{'episode': '01', 'url': 'https://p.com/03.m3u8'}],
+                    'quality': '1080p',
+                    'raw_url': 'https://example.com/play/456',
+                }
+            ],
+            'discovered_at': datetime.now(),
+            'updated_at': datetime.now(),
+        })
+
+        resp = await self.ac.get('/api/anime?genre=奇幻&year=2019')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data['data']), 2)
+        self.assertEqual({item['title'] for item in data['data']}, {'鬼灭之刃', '奇幻新作'})
+
     async def test_list_anime_sort_by_year(self):
         resp = await self.ac.get('/api/anime?sort_by=year&sort_order=asc')
         self.assertEqual(resp.status_code, 200)
